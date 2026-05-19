@@ -478,16 +478,43 @@ tr:hover td{background:var(--bg);cursor:pointer}
 
       <!-- GRÁFICO GERENCIAL -->
       <div class="chart-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-          <div class="chart-title">📊 Painel visual — situação dos contratos</div>
-          <select id="chartTipo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
-            <option value="etapas">Por etapa</option>
-            <option value="tipo">Por tipo previdenciário</option>
-            <option value="resp">Por responsável</option>
-          </select>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+          <div class="chart-title" style="margin-bottom:0">📊 Painel visual — situação dos contratos</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="chartTipo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+              <option value="etapas">Por etapa</option>
+              <option value="tipo">Por tipo previdenciário</option>
+              <option value="resp">Por responsável</option>
+            </select>
+            <select id="chartPeriodo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+              <option value="0">Todos os períodos</option>
+              <option value="30">Últimos 30 dias</option>
+              <option value="60">Últimos 60 dias</option>
+              <option value="90">Últimos 90 dias</option>
+              <option value="180">Últimos 180 dias</option>
+              <option value="365">Último ano</option>
+            </select>
+          </div>
         </div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Clique em qualquer barra para ver a lista filtrada</div>
         <div class="chart-bars" id="chartBars"></div>
         <div class="chart-legend" id="chartLegend"></div>
+      </div>
+
+      <!-- EXPLICAÇÃO DAS ETAPAS -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text2)">📌 O que significa cada etapa?</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px;font-size:11px">
+          <div><strong>Contrato fechado</strong> — cadastro completo, documentos ok, aguardando próximo passo</div>
+          <div><strong>Guia enviada</strong> — guia do INSS gerada e enviada, aguardando pagamento</div>
+          <div><strong>Guia paga · aguard. nasc.</strong> — guia paga, esperando a criança nascer</div>
+          <div><strong>Nasceu · protocolar</strong> — criança nasceu, precisa protocolar urgente</div>
+          <div><strong>Protocolado</strong> — benefício protocolado no INSS, aguardando análise</div>
+          <div><strong>Concedido ✓</strong> — INSS aprovou, benefício sendo pago</div>
+          <div><strong>Indeferido → Recurso</strong> — INSS negou, vai para recurso no operacional</div>
+          <div><strong>Encerrado ✓✓</strong> — benefício concluído e honorários 100% quitados</div>
+          <div><strong>Baixas / Perdas</strong> — contrato cancelado (guia não paga, perda gestacional, etc.)</div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:24px">
         <div class="rel-card">
@@ -1906,7 +1933,16 @@ const CHART_COLORS = ['#C94F6D','#1D5FA8','#3A7D44','#A0612A','#5B4BAD','#B83535
 
 window.renderGrafico = function(){
   const tipo = $('chartTipo')?.value||'etapas';
-  const data = visibleContracts();
+  const periodo = parseInt($('chartPeriodo')?.value)||0;
+  let data = visibleContracts();
+  // filtrar por período de fechamento
+  if(periodo>0){
+    data = data.filter(c=>{
+      if(!c.fechamento) return false;
+      const dias=Math.round((new Date()-new Date(c.fechamento+'T00:00:00'))/864e5);
+      return dias<=periodo;
+    });
+  }
   let grupos = {};
 
   if(tipo==='etapas'){
@@ -2189,26 +2225,39 @@ window.renderFinanceiro = function(){
   if(prevVal) selMes.value=prevVal;
   const mesFiltro=selMes.value;
 
-  let totalHon=0,totalReceb=0,totalAberto=0,totalBenefLiq=0;
+  let totalHon=0,totalReceb=0,totalAberto=0,totalAResgatar=0,totalBenefLiq=0;
   let proxReceb=[],honAberto=[],inadimplentes=[];
+  const idsInadTemp=new Set();
+
+  // primeira passagem: identificar inadimplentes
+  concessoes.forEach(c=>{
+    const parc=gerarParcelas(c);
+    const temInad=parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+    if(temInad) idsInadTemp.add(c.contractId);
+  });
 
   concessoes.forEach(c=>{
     const parc=gerarParcelas(c);
     const cont=contracts.find(x=>x.id===c.contractId)||{};
-    let temInad=false;
+    const isInad=idsInadTemp.has(c.contractId);
     parc.forEach(p=>{
-      totalHon+=p.honorario; totalBenefLiq+=p.valorBenef;
+      totalBenefLiq+=p.valorBenef;
       if(p.pago){ totalReceb+=p.honorario; }
       else {
-        totalAberto+=p.honorario;
         const days=daysUntilDate(p.dtCliente);
         const item={nome:cont.nome||c.nomeCliente,tel:cont.tel||'',parc:p.num,total:parc.length,dt:p.dtCliente,hon:p.honorario,days,cid:c.id,idx:p.num-1,contractId:c.contractId};
-        honAberto.push(item);
-        if(days<=60) proxReceb.push(item);
-        if(days<-7) temInad=true;
+        if(isInad){
+          // inadimplente: vai para totalAResgatar, não para proxReceb
+          totalAResgatar+=p.honorario;
+        } else {
+          totalHon+=p.honorario;
+          totalAberto+=p.honorario;
+          honAberto.push(item);
+          if(days>=0&&days<=60) proxReceb.push(item);
+        }
       }
     });
-    if(temInad){
+    if(isInad){
       const parcAtrasadas=parc.filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
       const totalAtrasado=parcAtrasadas.reduce((s,p)=>s+p.honorario,0);
       inadimplentes.push({nome:cont.nome||c.nomeCliente,tel:cont.tel||'',contractId:c.contractId,
@@ -2218,15 +2267,15 @@ window.renderFinanceiro = function(){
   proxReceb.sort((a,b)=>a.days-b.days);
   honAberto.sort((a,b)=>a.days-b.days);
 
-  const ticketMedio = concessoes.length>0 ? totalHon/concessoes.length : 0;
+  const ticketMedio = concessoes.length>0 ? (totalHon+totalReceb)/concessoes.length : 0;
   const taxaInad = concessoes.length>0 ? (inadimplentes.length/concessoes.length*100).toFixed(1) : '0.0';
   const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
 
   $('finMetrics').innerHTML=`
     <div class="metric-card"><div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. total esperado</div></div>
     <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAberto)}</div><div class="metric-lbl">Honor. em aberto</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber (adimpl.)</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAResgatar)}</div><div class="metric-lbl">A resgatar (inadimp.)</div></div>
     <div class="metric-card"><div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
     <div class="metric-card" style="cursor:pointer" onclick="document.getElementById('finInadCard').scrollIntoView({behavior:'smooth'})">
       <div class="metric-val" style="color:var(--red)">${inadimplentes.length}</div>
@@ -2236,7 +2285,7 @@ window.renderFinanceiro = function(){
     </div>
   `;
 
-  const idsInad = new Set(inadimplentes.map(i=>i.contractId));
+  const idsInad = idsInadTemp;
   const proxNormais = proxReceb.filter(p=>!idsInad.has(p.contractId));
   const proxInad    = proxReceb.filter(p=>idsInad.has(p.contractId));
   let proxHTML = '';
