@@ -260,6 +260,33 @@ tr:hover td{background:var(--bg);cursor:pointer}
 .btn-export-pdf{background:var(--red-bg);color:var(--red);border-color:#F7C1C1}
 .btn-export-pdf:hover{opacity:.85}
 
+/* ── ONLINE INDICATOR ── */
+.online-wrap{display:flex;align-items:center;gap:5px;cursor:pointer;position:relative}
+.online-dot{width:8px;height:8px;border-radius:50%;background:#3A7D44;animation:pulse-green 2s infinite}
+@keyframes pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(58,125,68,.4)}50%{box-shadow:0 0 0 4px rgba(58,125,68,0)}}
+.online-count{font-size:12px;font-weight:500;color:var(--text2)}
+.online-popup{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;min-width:180px;box-shadow:var(--shadow);z-index:100}
+.online-popup.open{display:block}
+.online-popup-item{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;border-bottom:0.5px solid var(--border)}
+.online-popup-item:last-child{border-bottom:none}
+.online-pip{width:7px;height:7px;border-radius:50%;background:#3A7D44;flex-shrink:0}
+
+/* ── GRÁFICO ── */
+.chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px}
+.chart-title{font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text)}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;height:160px;position:relative}
+.chart-bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end;cursor:pointer;position:relative}
+.chart-bar{width:100%;border-radius:6px 6px 0 0;transition:opacity .2s,filter .2s;min-height:4px;position:relative}
+.chart-bar:hover{filter:brightness(1.15)}
+.chart-bar-label{font-size:10px;color:var(--text2);margin-top:5px;text-align:center;white-space:nowrap}
+.chart-bar-val{font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.chart-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:6px 10px;border-radius:8px;font-size:11px;white-space:nowrap;z-index:10;pointer-events:none}
+.chart-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--text)}
+.chart-bar-wrap:hover .chart-tooltip{display:block}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.chart-leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer}
+.chart-leg-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
 /* ── RELATÓRIOS ── */
 .rel-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column}
 .rel-card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
@@ -324,6 +351,12 @@ tr:hover td{background:var(--bg);cursor:pointer}
     <div class="topbar-sep"></div>
     <div id="alertBadgeWrap" style="display:none">
       <div class="alert-badge" id="alertBadgeNum">0</div>
+    </div>
+    <!-- indicador de quem está online -->
+    <div class="online-wrap" onclick="toggleOnlinePopup()" id="onlineWrap" style="display:none">
+      <div class="online-dot"></div>
+      <span class="online-count" id="onlineCount">1 online</span>
+      <div class="online-popup" id="onlinePopup"></div>
     </div>
     <div class="topbar-user">
       <div class="avatar" id="topAvatar">--</div>
@@ -430,6 +463,20 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <div style="font-size:18px;font-weight:600;letter-spacing:-.3px">Relatórios</div>
           <div style="font-size:13px;color:var(--text2);margin-top:2px">Gere e exporte relatórios do escritório</div>
         </div>
+      </div>
+
+      <!-- GRÁFICO GERENCIAL -->
+      <div class="chart-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="chart-title">📊 Painel visual — situação dos contratos</div>
+          <select id="chartTipo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+            <option value="etapas">Por etapa</option>
+            <option value="tipo">Por tipo previdenciário</option>
+            <option value="resp">Por responsável</option>
+          </select>
+        </div>
+        <div class="chart-bars" id="chartBars"></div>
+        <div class="chart-legend" id="chartLegend"></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:24px">
         <div class="rel-card">
@@ -721,6 +768,8 @@ tr:hover td{background:var(--bg);cursor:pointer}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
          createUserWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+import { getDatabase, ref, set, onValue, onDisconnect, serverTimestamp as rtServerTimestamp }
+  from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs,
          addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
@@ -736,13 +785,67 @@ const firebaseConfig = {
   storageBucket: "maternidadeprev-8b884.firebasestorage.app",
   messagingSenderId: "193110428198",
   appId: "1:193110428198:web:dedc0f9a8e56e6072ef4e7",
-  measurementId: "G-DR11S6Y3K4"
+  measurementId: "G-DR11S6Y3K4",
+  databaseURL: "https://maternidadeprev-8b884-default-rtdb.firebaseio.com"
 };
 // ════════════════════════════════════════
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
+const rtdb = getDatabase(fbApp);
+
+// ── PRESENÇA ONLINE ──
+let onlineUsers = {};
+function iniciarPresenca(){
+  if(!currentUser) return;
+  const userRef = ref(rtdb, `presence/${currentUser.uid}`);
+  const connRef = ref(rtdb, '.info/connected');
+  onValue(connRef, snap=>{
+    if(!snap.val()) return;
+    set(userRef,{
+      nome: currentProfile?.nome||currentUser.email,
+      uid: currentUser.uid,
+      online: true,
+      ts: Date.now(),
+    });
+    onDisconnect(userRef).remove();
+  });
+  // escutar todos online
+  const presRef = ref(rtdb,'presence');
+  onValue(presRef, snap=>{
+    onlineUsers={};
+    snap.forEach(child=>{ onlineUsers[child.key]=child.val(); });
+    renderOnlineIndicator();
+  });
+}
+
+function renderOnlineIndicator(){
+  const users = Object.values(onlineUsers);
+  const wrap=$('onlineWrap');
+  if(!wrap) return;
+  wrap.style.display = users.length>0?'flex':'none';
+  $('onlineCount').textContent = `${users.length} online`;
+  $('onlinePopup').innerHTML = `
+    <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Quem está online</div>
+    ${users.map(u=>`
+      <div class="online-popup-item">
+        <div class="online-pip"></div>
+        <span>${u.nome||'—'}</span>
+      </div>`).join('')}`;
+}
+
+window.toggleOnlinePopup = function(){
+  $('onlinePopup').classList.toggle('open');
+};
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#onlineWrap')) $('onlinePopup')?.classList.remove('open');
+});
+
+function removerPresenca(){
+  if(!currentUser) return;
+  set(ref(rtdb,`presence/${currentUser.uid}`), null);
+}
 
 // ── state ──
 let currentUser = null;
@@ -898,6 +1001,7 @@ window.doLogout = async function(){
   if(unsubContracts) unsubContracts();
   if(unsubConcessoes) unsubConcessoes();
   if(unsubAudit) unsubAudit();
+  removerPresenca();
   await signOut(auth);
 };
 
@@ -916,6 +1020,7 @@ onAuthStateChanged(auth, async user => {
     await loadUsers();
     subscribeContracts();
     if(isGestora()){ subscribeConcessoes(); subscribeAudit(); }
+    iniciarPresenca();
   } else {
     currentUser=null; currentProfile=null; contracts=[];
     $('authScreen').style.display='flex';
@@ -1754,8 +1859,89 @@ window.renderList = function(){
   }).join('');
 };
 
-// ── RELATÓRIOS ──
+// ── GRÁFICO INTERATIVO ──
+const CHART_COLORS = ['#C94F6D','#1D5FA8','#3A7D44','#A0612A','#5B4BAD','#B83535','#27500A','#856404','#185FA5','#D4900A'];
+
+window.renderGrafico = function(){
+  const tipo = $('chartTipo')?.value||'etapas';
+  const data = visibleContracts();
+  let grupos = {};
+
+  if(tipo==='etapas'){
+    COLS.forEach(c=>{ grupos[c.label]=0; });
+    data.forEach(c=>{ const lbl=colLabel(c.etapa); grupos[lbl]=(grupos[lbl]||0)+1; });
+  } else if(tipo==='tipo'){
+    grupos={'Já segurada':0,'Contrib. única':0,'CLT + ind.':0};
+    data.forEach(c=>{
+      if(c.tipo==='qualidade') grupos['Já segurada']++;
+      else if(c.tipo==='contrib-unica') grupos['Contrib. única']++;
+      else grupos['CLT + ind.']++;
+    });
+  } else {
+    data.forEach(c=>{
+      const nome = usersMap[c.resp]?.nome?.split(' ')[0]||'—';
+      grupos[nome]=(grupos[nome]||0)+1;
+    });
+  }
+
+  const entries = Object.entries(grupos).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxVal = Math.max(...entries.map(([,v])=>v), 1);
+  const bars = $('chartBars');
+  const legend = $('chartLegend');
+  if(!bars||!legend) return;
+
+  bars.innerHTML = entries.map(([lbl,val],i)=>{
+    const pct = Math.round(val/maxVal*100);
+    const color = CHART_COLORS[i%CHART_COLORS.length];
+    const filtroParam = tipo==='etapas'
+      ? `filtrarLista('${COLS.find(c=>c.label===lbl)?.id||''}')`
+      : tipo==='tipo'
+      ? `filtrarListaTipo('${lbl}')`
+      : `filtrarListaResp('${lbl}')`;
+    return `<div class="chart-bar-wrap" onclick="${filtroParam}">
+      <div class="chart-bar-val">${val}</div>
+      <div class="chart-bar" style="height:${pct}%;background:${color}">
+        <div class="chart-tooltip">${lbl}: ${val} contrato${val!==1?'s':''}</div>
+      </div>
+      <div class="chart-bar-label">${lbl.length>12?lbl.slice(0,11)+'…':lbl}</div>
+    </div>`;
+  }).join('');
+
+  legend.innerHTML = entries.map(([lbl,val],i)=>`
+    <div class="chart-leg-item" onclick="${tipo==='etapas'?`filtrarLista('${COLS.find(c=>c.label===lbl)?.id||''}')`:''}">
+      <div class="chart-leg-dot" style="background:${CHART_COLORS[i%CHART_COLORS.length]}"></div>
+      <span>${lbl} (${val})</span>
+    </div>`).join('');
+};
+
+window.filtrarListaTipo = function(lbl){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-lista').classList.add('active');
+  document.querySelectorAll('.tab-btn')[2].classList.add('active');
+  const sel=$('listTipo');
+  if(lbl==='Já segurada') sel.value='qualidade';
+  else if(lbl==='Contrib. única') sel.value='contrib-unica';
+  else sel.value='clt-extra';
+  $('listEtapa').value=''; $('listSearch').value=''; $('listResp').value='';
+  window._filtroCustom=null; window._filtroDiasParto=null;
+  renderList();
+};
+
+window.filtrarListaResp = function(primeiroNome){
+  const uid = Object.entries(usersMap).find(([,u])=>u.nome?.startsWith(primeiroNome))?.[0]||'';
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-lista').classList.add('active');
+  document.querySelectorAll('.tab-btn')[2].classList.add('active');
+  if($('listResp')) $('listResp').value=uid;
+  $('listEtapa').value=''; $('listSearch').value=''; $('listTipo').value='';
+  window._filtroCustom=null; window._filtroDiasParto=null;
+  renderList();
+};
+
 window.renderRelatorios = function(){
+  renderGrafico();
   const nasc90 = visibleContracts().filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido'&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=90)
     .sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
   const el=$('relNascCard');
