@@ -212,6 +212,19 @@ tr:hover td{background:var(--bg);cursor:pointer}
 
 .kb-card.indeferido-card{border-color:#FFAD5C;background:#1A1000}
 .kb-card.encerrado-card{border-color:#A0C4FF;background:#0D0D1A;opacity:.8}
+.fin-conc-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 10px;margin-bottom:5px;cursor:pointer;transition:border-color .15s}
+.fin-conc-card:hover{border-color:var(--border2)}
+.fin-conc-nome{font-size:12px;font-weight:600;margin-bottom:3px}
+.fin-conc-info{font-size:11px;color:var(--text2);line-height:1.5}
+
+/* ── AUDIT LOG ── */
+.audit-item{display:flex;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:12px}
+.audit-item:last-child{border-bottom:none}
+.audit-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.audit-main{flex:1}
+.audit-who{font-weight:500}
+.audit-detail{font-size:11px;color:var(--text2);margin-top:2px}
+
 /* ── FINANCEIRO ── */
 .fin-parc{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:9px;border:1px solid var(--border);background:var(--bg);margin-bottom:5px}
 .fin-parc-num{width:22px;height:22px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -460,14 +473,15 @@ tr:hover td{background:var(--bg);cursor:pointer}
 
   <!-- ── FINANCEIRO VIEW (gestora only) ── -->
   <div class="view" id="view-financeiro">
-    <div class="dash-wrap" style="max-width:1100px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div class="dash-wrap full">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:18px;font-weight:600;letter-spacing:-.3px">Financeiro</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">Visível apenas para a gestora</div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="finMesFiltro" onchange="renderFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
+          <button class="btn-new" style="font-size:12px;padding:6px 14px" onclick="openConcessaoModal()">+ Registrar concessão</button>
           <button class="btn-export btn-export-pdf" onclick="exportFinanceiroPDF()">⬇ PDF</button>
         </div>
       </div>
@@ -475,34 +489,26 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <!-- métricas financeiras -->
       <div class="metrics-row" id="finMetrics"></div>
 
-      <!-- próximos recebimentos -->
-      <div class="dash-section-title" style="margin-top:4px">📅 Recebimentos previstos — próximos 60 dias</div>
-      <div class="alert-card" id="finProxCard"></div>
-
-      <!-- honorários em aberto -->
-      <div class="dash-section-title" style="margin-top:4px">⚠ Honorários em aberto (não recebidos)</div>
-      <div class="alert-card" id="finAbertoCard"></div>
-      <div class="dash-section-title" style="margin-top:4px">🚨 Contratos inadimplentes (atraso &gt; 7 dias)</div>
-      <div class="alert-card" id="finInadCard"></div>
-
-      <!-- tabela completa de benefícios concedidos -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;margin-top:4px">
-        <div class="dash-section-title" style="margin-bottom:0">📋 Todos os benefícios concedidos</div>
-        <button class="btn-new" style="font-size:12px;padding:6px 14px" onclick="openConcessaoModal()">+ Registrar concessão</button>
-      </div>
-      <div class="table-wrap" style="margin-bottom:20px">
-        <table>
-          <colgroup>
-            <col style="width:16%"><col style="width:10%"><col style="width:9%"><col style="width:9%">
-            <col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%">
-          </colgroup>
-          <thead><tr>
-            <th>Cliente</th><th>Modalidade</th><th>Benef. bruto</th><th>Benef. líquido</th>
-            <th>Parcelas</th><th>Honor. total</th><th>Honor. receb.</th><th>Honor. em aberto</th>
-            <th>Próx. vencimento</th><th>Status</th>
-          </tr></thead>
-          <tbody id="finTableBody"></tbody>
-        </table>
+      <!-- colunas financeiras -->
+      <div class="dash-cols" style="grid-template-columns:repeat(4,1fr);margin-top:4px">
+        <div class="dash-col">
+          <div class="dash-col-title">📅 Recebimentos previstos — 60 dias</div>
+          <div class="dash-col-body" id="finProxCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">⚠ Honorários em aberto</div>
+          <div class="dash-col-body" id="finAbertoCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">🚨 Inadimplentes (&gt;7 dias)</div>
+          <div class="dash-col-body" id="finInadCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title" style="display:flex;justify-content:space-between;align-items:center">
+            <span>📋 Benefícios concedidos</span>
+          </div>
+          <div class="dash-col-body" id="finConcedidosCard"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -560,28 +566,47 @@ tr:hover td{background:var(--bg);cursor:pointer}
   <!-- ── ADMIN VIEW ── -->
   <div class="view" id="view-admin">
     <div class="dash-wrap">
-      <div class="dash-section-title">Gerenciar usuários</div>
-      <div class="alert-card" id="userListCard">
-        <div class="loading"><div class="spinner"></div> Carregando...</div>
-      </div>
-      <div style="margin-top:16px">
-        <div class="dash-section-title">Cadastrar novo usuário</div>
-        <div class="alert-card">
-          <div class="frow">
-            <div class="field"><label>Nome</label><input id="nu_nome" placeholder="Nome completo"></div>
-            <div class="field"><label>E-mail</label><input id="nu_email" type="email" placeholder="email@exemplo.com"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+        <div>
+          <div class="dash-section-title">Gerenciar usuários</div>
+          <div class="alert-card" id="userListCard">
+            <div class="loading"><div class="spinner"></div> Carregando...</div>
           </div>
-          <div class="frow">
-            <div class="field"><label>Senha inicial</label><input id="nu_senha" type="password" placeholder="Mínimo 6 caracteres"></div>
-            <div class="field"><label>Perfil</label>
-              <select id="nu_role">
-                <option value="comercial">Comercial</option>
-                <option value="operacional">Operacional</option>
-                <option value="gestora">Gestora (acesso total)</option>
-              </select>
+          <div style="margin-top:16px">
+            <div class="dash-section-title">Cadastrar novo usuário</div>
+            <div class="alert-card">
+              <div class="frow">
+                <div class="field"><label>Nome</label><input id="nu_nome" placeholder="Nome completo"></div>
+                <div class="field"><label>E-mail</label><input id="nu_email" type="email" placeholder="email@exemplo.com"></div>
+              </div>
+              <div class="frow">
+                <div class="field"><label>Senha inicial</label><input id="nu_senha" type="password" placeholder="Mínimo 6 caracteres"></div>
+                <div class="field"><label>Perfil</label>
+                  <select id="nu_role">
+                    <option value="comercial">Comercial</option>
+                    <option value="operacional">Operacional</option>
+                    <option value="gestora">Gestora (acesso total)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="btn-row"><button class="btn-save" onclick="createUser()">Cadastrar usuário</button></div>
             </div>
           </div>
-          <div class="btn-row"><button class="btn-save" onclick="createUser()">Cadastrar usuário</button></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="dash-section-title" style="margin-bottom:0">📋 Log de auditoria</div>
+            <select id="auditFiltro" onchange="renderAuditLog()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)">
+              <option value="">Todas as ações</option>
+              <option value="criar">Criações</option>
+              <option value="editar">Edições</option>
+              <option value="excluir">Exclusões</option>
+              <option value="mover">Mudanças de etapa</option>
+            </select>
+          </div>
+          <div class="alert-card" style="max-height:500px;overflow-y:auto" id="auditLogCard">
+            <div class="loading"><div class="spinner"></div> Carregando...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -669,7 +694,13 @@ tr:hover td{background:var(--bg);cursor:pointer}
         <div class="section-sep">Contrato</div>
         <div class="frow">
           <div class="field"><label>Data de fechamento</label><input id="f_fechamento" type="date"></div>
-          <div class="field"><label>Responsável</label><select id="f_resp"></select></div>
+          <div class="field"><label>Responsável pelo atendimento</label><select id="f_resp"></select></div>
+        </div>
+        <div class="field full" id="f_resporiginal_row">
+          <label>⚠ Responsável original (preencha se não foi você quem atendeu — ex: estagiária que saiu)</label>
+          <select id="f_resporiginal">
+            <option value="">— mesmo que o responsável acima —</option>
+          </select>
         </div>
         <div class="field full"><label>Link Google Drive</label><input id="f_drive" placeholder="https://drive.google.com/..."></div>
         <div class="field full"><label>Observações</label><textarea id="f_obs" placeholder="Quando nos procurou, situação especial, anotações..."></textarea></div>
@@ -866,6 +897,7 @@ window.doRecuperarSenha = async function(){
 window.doLogout = async function(){
   if(unsubContracts) unsubContracts();
   if(unsubConcessoes) unsubConcessoes();
+  if(unsubAudit) unsubAudit();
   await signOut(auth);
 };
 
@@ -883,7 +915,7 @@ onAuthStateChanged(auth, async user => {
     if(isGestora()){ $('tabAdmin').style.display=''; $('tabFinanceiro').style.display=''; }
     await loadUsers();
     subscribeContracts();
-    if(isGestora()) subscribeConcessoes();
+    if(isGestora()){ subscribeConcessoes(); subscribeAudit(); }
   } else {
     currentUser=null; currentProfile=null; contracts=[];
     $('authScreen').style.display='flex';
@@ -902,6 +934,7 @@ async function loadUsers(){
 
 function populateRespSelects(){
   const opts = Object.entries(usersMap).map(([uid,u])=>`<option value="${uid}">${u.nome}</option>`).join('');
+  const optsComVazio = `<option value="">— mesmo que o responsável acima —</option>`+opts;
   ['kbFilterResp','listResp','f_resp'].forEach(id=>{
     const el=$(id); if(!el) return;
     const prev = el.value;
@@ -912,7 +945,56 @@ function populateRespSelects(){
     }
     el.value=prev||currentUser.uid;
   });
+  // responsável original
+  const ro=$('f_resporiginal');
+  if(ro){ ro.innerHTML=optsComVazio; }
 }
+
+// ── LOG DE AUDITORIA ──
+async function registrarAudit(acao, contratoId, nomeCliente, detalhes){
+  try{
+    await addDoc(collection(db,'auditlog'),{
+      acao, contratoId, nomeCliente, detalhes,
+      uid: currentUser.uid,
+      nomeUsuario: currentProfile?.nome||currentUser.email,
+      ts: serverTimestamp(),
+      tsLocal: new Date().toISOString(),
+    });
+  } catch(e){ console.warn('Audit log error:',e); }
+}
+
+let auditLogs = [];
+let unsubAudit = null;
+
+function subscribeAudit(){
+  if(!isGestora()) return;
+  const q = query(collection(db,'auditlog'), orderBy('ts','desc'));
+  unsubAudit = onSnapshot(q, snap=>{
+    auditLogs=[];
+    snap.forEach(d=>auditLogs.push({id:d.id,...d.data()}));
+    if($('view-admin')?.classList.contains('active')) renderAuditLog();
+  });
+}
+
+window.renderAuditLog = function(){
+  const filtro = $('auditFiltro')?.value||'';
+  const logs = filtro ? auditLogs.filter(l=>l.acao===filtro) : auditLogs;
+  const icons = {criar:'📝',editar:'✏️',excluir:'🗑',mover:'↕️'};
+  const card = $('auditLogCard');
+  if(!card) return;
+  card.innerHTML = logs.length ? logs.slice(0,100).map(l=>{
+    const dt = l.tsLocal ? new Date(l.tsLocal).toLocaleString('pt-BR') : '—';
+    return `<div class="audit-item">
+      <span class="audit-icon">${icons[l.acao]||'•'}</span>
+      <div class="audit-main">
+        <span class="audit-who">${l.nomeUsuario||'—'}</span>
+        <span style="color:var(--text2)"> ${l.acao==='criar'?'cadastrou':l.acao==='editar'?'editou':l.acao==='excluir'?'excluiu':l.acao==='mover'?'moveu':'ação em'}</span>
+        <strong> ${l.nomeCliente||'—'}</strong>
+        <div class="audit-detail">${dt}${l.detalhes?' · '+l.detalhes:''}</div>
+      </div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma ação registrada.</div>';
+};
 
 // ── MÁSCARAS ──
 window.mascaraCPF = function(el){
@@ -961,7 +1043,7 @@ window.showView = function(v,el){
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
   $('view-'+v).classList.add('active'); el.classList.add('active');
-  if(v==='admin') renderAdminUsers();
+  if(v==='admin'){ renderAdminUsers(); renderAuditLog(); }
   if(v==='dashboard') renderDashboard();
   if(v==='lista') renderList();
   if(v==='relatorios') renderRelatorios();
@@ -1181,6 +1263,7 @@ window.openPanel = function(id){
           <div class="info-item"><div class="info-key">Tipo prev.</div><div class="info-val">${c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.'}</div></div>
           <div class="info-item"><div class="info-key">Situação</div><div class="info-val">${c.subtipo?({graca:'Período de graça',agricultora:'Agricultora',outro:'Outra',nunca:'Nunca trabalhou',desempregada:'Desempregada',autonoma:'Autônoma/MEI','renda-extra':'Renda extra','somente-clt':'Só CLT'}[c.subtipo]||c.subtipo):'—'}</div></div>
           <div class="info-item"><div class="info-key">Responsável</div><div class="info-val">${respName}</div></div>
+          ${c.resporiginal?`<div class="info-item"><div class="info-key">Resp. original</div><div class="info-val" style="color:var(--amber)">${usersMap[c.resporiginal]?.nome||c.resporiginal}</div></div>`:''}
           <div class="info-item"><div class="info-key">Criado por</div><div class="info-val">${usersMap[c.createdBy]?.nome||'—'}</div></div>
           <div class="info-item" style="grid-column:1/-1">
             <div class="info-key">Data nasc. criança (preencher após parto)</div>
@@ -1293,6 +1376,7 @@ window.moveEtapa = async function(id, etapa){
   if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
   if(etapa==='encerrado') update.dataEncerramento=hoje;
   await updateDoc(doc(db,'contracts',id),update);
+  await registrarAudit('mover', id, c.nome, `Movido para: ${colLabel(etapa)}`);
   toast('Etapa atualizada');
   openPanel(id);
 };
@@ -1309,6 +1393,7 @@ window.deleteContract = async function(id){
   if(!isGestora()){ toast('Apenas a gestora pode excluir contratos.'); return; }
   const c=contracts.find(x=>x.id===id);
   if(!confirm(`⚠ ATENÇÃO: Excluir o contrato de "${c?.nome}" permanentemente?\n\nEsta ação NÃO pode ser desfeita.`)) return;
+  await registrarAudit('excluir', id, c?.nome||'—', 'Contrato excluído permanentemente');
   closePanel();
   await deleteDoc(doc(db,'contracts',id));
   toast('Contrato excluído permanentemente');
@@ -1346,6 +1431,7 @@ window.openEditModal = function(id){
   $('f_tipo').value=c.tipo||'qualidade';
   $('f_subtipo').value=c.subtipo||'';
   $('f_resp').value=c.resp||currentUser.uid;
+  if($('f_resporiginal')) $('f_resporiginal').value=c.resporiginal||'';
   $('f_drive').value=c.drive||'';
   $('f_obs').value=c.obs||'';
   $('f_fechamento').value=c.fechamento||'';
@@ -1412,16 +1498,18 @@ window.saveContract = async function(){
     nome:g('f_nome'), tel:g('f_tel'), tel2:g('f_tel2'), tel2desc:g('f_tel2desc'), cpf:g('f_cpf'),
     dtnasc:g('f_dtnasc'), senha:g('f_senha'),
     dpp:g('f_dpp'), mesgest:g('f_mesgest'), tipo:g('f_tipo'), subtipo:g('f_subtipo')||'',
-    resp:g('f_resp'), drive:g('f_drive'), obs:g('f_obs'), fechamento:g('f_fechamento'),
+    resp:g('f_resp'), resporiginal:g('f_resporiginal')||'', drive:g('f_drive'), obs:g('f_obs'), fechamento:g('f_fechamento'),
     guia_mes:g('f_guia_mes'), paga:g('f_paga'), guia_status:g('f_guia_status'), guia_val:g('f_guia_val'),
   };
   try{
     if(editingId){
       await updateDoc(doc(db,'contracts',editingId), data);
+      await registrarAudit('editar', editingId, data.nome, 'Dados do contrato atualizados');
       toast('Contrato atualizado ✓');
     } else {
       data.etapa='fechado'; data.docs={}; data.createdBy=currentUser.uid; data.createdAt=serverTimestamp();
-      await addDoc(collection(db,'contracts'), data);
+      const ref = await addDoc(collection(db,'contracts'), data);
+      await registrarAudit('criar', ref.id, data.nome, 'Contrato criado');
       toast('Contrato criado ✓');
     }
     closeModal();
@@ -1848,6 +1936,7 @@ window.createUser = async function(){
 // ══════════════════════════════════════
 let concessoes = [];
 let unsubConcessoes = null;
+let unsubAudit = null;
 let editingConcessaoId = null;
 
 function subscribeConcessoes(){
@@ -1968,7 +2057,26 @@ window.renderFinanceiro = function(){
       </div>
     </div>`).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário em aberto. ✓</div>';
 
-  // card inadimplentes agrupados por cliente
+  // coluna benefícios concedidos
+  const concCard=$('finConcedidosCard');
+  if(concCard) concCard.innerHTML = concessoes.length ? concessoes.map(c=>{
+    const parc=gerarParcelas(c);
+    const cont=contracts.find(x=>x.id===c.contractId)||{};
+    const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
+    const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
+    const honAberto=honTotal-honReceb;
+    const proxNaoPago=parc.find(p=>!p.pago);
+    const status=honAberto===0?'pago':proxNaoPago&&daysUntilDate(proxNaoPago.dtCliente)<-7?'atrasado':'ativo';
+    return `<div class="fin-conc-card" onclick="openConcessaoModal('${c.id}')">
+      <div class="fin-conc-nome">${cont.nome||c.nomeCliente||'—'}</div>
+      <div class="fin-conc-info">
+        <span class="badge ${c.modalidade==='40'?'badge-amber':'badge-blue'}">${c.modalidade}%</span>
+        <span class="badge ${status==='pago'?'badge-green':status==='atrasado'?'badge-red':'badge-blue'}" style="margin-left:4px">${status==='pago'?'Quitado':status==='atrasado'?'Atrasado':'Em andamento'}</span><br>
+        Parcelas: ${parc.filter(p=>p.pago).length}/${parc.length} · Aberto: <strong style="color:${honAberto>0?'var(--red)':'var(--text2)'}">${fmt(honAberto)}</strong>
+        ${proxNaoPago?`<br>Próx: ${proxNaoPago.dtCliente}`:''}
+      </div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma concessão registrada.</div>';
   const inadCard=$('finInadCard');
   if(inadCard) inadCard.innerHTML=inadimplentes.length?inadimplentes.map(i=>{
     const wLink=i.tel?`https://wa.me/55${i.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}`:'';
