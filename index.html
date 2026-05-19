@@ -363,6 +363,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <span id="topName" style="font-size:13px;font-weight:500"></span>
       <span class="role-badge" id="topRole"></span>
     </div>
+    <button id="btnBackup" style="display:none;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:none;color:var(--text2);cursor:pointer" onclick="exportBackupCompleto()" title="Baixar backup completo de todos os dados">💾 Backup</button>
     <button class="btn-logout" onclick="doLogout()">Sair</button>
   </div>
 
@@ -1054,7 +1055,7 @@ onAuthStateChanged(auth, async user => {
     $('topAvatar').textContent = initials(currentProfile.nome);
     $('topName').textContent = currentProfile.nome;
     $('topRole').textContent = currentProfile.role==='gestora'?'Gestora':currentProfile.role==='operacional'?'Operacional':'Comercial';
-    if(isGestora()){ $('tabAdmin').style.display=''; $('tabFinanceiro').style.display=''; }
+    if(isGestora()){ $('tabAdmin').style.display=''; $('tabFinanceiro').style.display=''; $('btnBackup').style.display=''; }
     await loadUsers();
     subscribeContracts();
     if(isGestora()){ subscribeConcessoes(); subscribeAudit(); }
@@ -1093,7 +1094,47 @@ function populateRespSelects(){
   if(ro){ ro.innerHTML=optsComVazio; }
 }
 
-// ── LOG DE AUDITORIA ──
+// ── BACKUP COMPLETO ──
+window.exportBackupCompleto = async function(){
+  if(!isGestora()) return;
+  toast('Gerando backup... aguarde');
+  try{
+    // buscar todos os dados do Firestore
+    const [contrSnap, concSnap, usersSnap, auditSnap] = await Promise.all([
+      getDocs(collection(db,'contracts')),
+      getDocs(collection(db,'concessoes')),
+      getDocs(collection(db,'users')),
+      getDocs(collection(db,'auditlog')),
+    ]);
+    const backup = {
+      geradoEm: new Date().toISOString(),
+      geradoPor: currentProfile?.nome||currentUser.email,
+      versao: '1.0',
+      contratos: [],
+      concessoes: [],
+      usuarios: [],
+      auditlog: [],
+    };
+    contrSnap.forEach(d=>backup.contratos.push({id:d.id,...d.data()}));
+    concSnap.forEach(d=>backup.concessoes.push({id:d.id,...d.data()}));
+    usersSnap.forEach(d=>backup.usuarios.push({id:d.id,...d.data()}));
+    auditSnap.forEach(d=>backup.auditlog.push({id:d.id,...d.data()}));
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json],{type:'application/json;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const dt = new Date().toISOString().split('T')[0];
+    a.download = `backup_maternidadeprev_${dt}.json`;
+    a.click();
+    toast(`Backup gerado ✓ — ${backup.contratos.length} contratos, ${backup.concessoes.length} concessões`);
+
+    // registrar no audit
+    await registrarAudit('editar','—','Sistema',`Backup completo gerado: ${backup.contratos.length} contratos`);
+  } catch(e){
+    toast('Erro ao gerar backup: '+e.message);
+  }
+};
 async function registrarAudit(acao, contratoId, nomeCliente, detalhes){
   try{
     await addDoc(collection(db,'auditlog'),{
