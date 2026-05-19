@@ -436,9 +436,20 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <option value="clt-extra">CLT + ind.</option>
         </select>
         <select id="listResp" onchange="renderList()"><option value="">Todos os resp.</option></select>
+        <select id="listPeriodo" onchange="renderList()">
+          <option value="0">Qualquer período</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="30">Últimos 30 dias</option>
+          <option value="60">Últimos 60 dias</option>
+          <option value="90">Últimos 90 dias</option>
+          <option value="180">Últimos 180 dias</option>
+          <option value="365">Último ano</option>
+        </select>
+        <button class="btn-export" onclick="limparFiltros()" title="Limpar todos os filtros">✕ Limpar</button>
         <button class="btn-export" onclick="exportExcel()">⬇ Excel</button>
         <button class="btn-export btn-export-pdf" onclick="exportListaPDF()">⬇ PDF</button>
       </div>
+      <div id="listFiltroInfo" style="display:none;font-size:12px;color:var(--blue);background:var(--blue-bg);border-radius:var(--radius);padding:6px 12px;margin-bottom:8px"></div>
       <div class="table-wrap">
         <table>
           <colgroup>
@@ -1650,11 +1661,11 @@ window.renderDashboard = function(){
    .sort((a,b)=>a.diasParto-b.diasParto);
 
   $('metricsRow').innerHTML=`
-    <div class="metric-card metric-link" onclick="filtrarLista('')" title="Ver todos os contratos ativos"><div class="metric-val">${ativos.length}</div><div class="metric-lbl">Contratos ativos</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('')" title="Ver contratos ativos"><div class="metric-val">${ativos.length}</div><div class="metric-lbl">Contratos ativos</div></div>
     <div class="metric-card metric-link" onclick="filtrarLista('',30)" title="Ver partos em 30 dias"><div class="metric-val" style="color:var(--red)">${urgent30.length}</div><div class="metric-lbl">Partos em 30 dias</div></div>
     <div class="metric-card metric-link" onclick="filtrarLista('',90)" title="Ver partos em 90 dias"><div class="metric-val" style="color:#D4900A">${urgent90.length}</div><div class="metric-lbl">Partos em 90 dias</div></div>
-    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_pendentes')" title="Ver clientes com guia pendente"><div class="metric-val" style="color:var(--amber)">${guiaPend.length}</div><div class="metric-lbl">Guias pendentes</div></div>
-    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_escritorio')" title="Ver guias que o escritório pagará"><div class="metric-val" style="color:#B83535">${guiasEscritorio.filter(c=>c.urgente).length}</div><div class="metric-lbl">Guias escritório urgentes</div></div>
+    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_pendentes')" title="Ver guias pendentes"><div class="metric-val" style="color:var(--amber)">${guiaPend.length}</div><div class="metric-lbl">Guias pendentes</div></div>
+    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_escritorio')" title="Ver guias escritório urgentes"><div class="metric-val" style="color:#B83535">${guiasEscritorio.filter(c=>c.urgente).length}</div><div class="metric-lbl">Guias escritório urgentes</div></div>
     <div class="metric-card metric-link" onclick="filtrarLista('concedido')" title="Ver concedidos"><div class="metric-val" style="color:var(--green)">${conc.length}</div><div class="metric-lbl">Concedidos</div></div>
     <div class="metric-card metric-link" onclick="filtrarLista('indeferido')" title="Ver indeferidos"><div class="metric-val" style="color:#FFAD5C">${indeferidos.length}</div><div class="metric-lbl">Indeferidos</div></div>
     <div class="metric-card metric-link" onclick="filtrarLista('encerrado')" title="Ver encerrados"><div class="metric-val" style="color:#A0C4FF">${encerrados.length}</div><div class="metric-lbl">Encerrados</div></div>
@@ -1752,23 +1763,16 @@ function colLabel(id){ return (COLS.find(c=>c.id===id)||{label:id}).label; }
 
 // Navega para aba Contratos com filtro aplicado
 window.filtrarLista = function(etapa, diasParto){
-  // ativar aba lista
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
   $('view-lista').classList.add('active');
   document.querySelectorAll('.tab-btn')[2].classList.add('active');
-  // aplicar filtro
-  if(etapa !== undefined){
-    const sel = $('listEtapa');
-    // popular opções se ainda não foram
-    if(sel && sel.options.length<=1) COLS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.label;sel.appendChild(o);});
-    if(sel) sel.value = etapa||'';
-  }
-  $('listSearch').value='';
-  $('listTipo').value='';
-  $('listResp').value='';
-  // se filtro por dias de parto, usar campo de busca customizado
-  window._filtroDiasParto = diasParto||null;
+  const sel=$('listEtapa');
+  if(sel&&sel.options.length<=1) COLS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.label;sel.appendChild(o);});
+  sel.value=etapa||'';
+  $('listSearch').value=''; $('listTipo').value=''; $('listResp').value='';
+  window._filtroDiasParto=diasParto||null;
+  window._filtroCustom=etapa===''&&!diasParto?'ativos':null;
   renderList();
 };
 
@@ -1783,6 +1787,14 @@ window.filtrarListaCustom = function(tipo){
   sel.value=''; $('listSearch').value=''; $('listTipo').value=''; $('listResp').value='';
   window._filtroDiasParto=null;
   window._filtroCustom=tipo;
+  renderList();
+};
+
+window.limparFiltros = function(){
+  $('listSearch').value=''; $('listEtapa').value='';
+  $('listTipo').value=''; $('listResp').value='';
+  if($('listPeriodo')) $('listPeriodo').value='0';
+  window._filtroDiasParto=null; window._filtroCustom=null;
   renderList();
 };
 
@@ -1804,8 +1816,7 @@ function updateAlertBadge(){
 
 // ── LIST ──
 window.renderList = function(){
-  // limpar filtro especial se usuário interagiu manualmente
-  if(document.activeElement && ['listSearch','listEtapa','listTipo','listResp'].includes(document.activeElement.id)){
+  if(document.activeElement && ['listSearch','listEtapa','listTipo','listResp','listPeriodo'].includes(document.activeElement.id)){
     window._filtroDiasParto = null;
     window._filtroCustom = null;
   }
@@ -1815,25 +1826,35 @@ window.renderList = function(){
   const etF=$('listEtapa')?.value||'';
   const tpF=$('listTipo')?.value||'';
   const rsF=$('listResp')?.value||'';
+  const periodo=parseInt($('listPeriodo')?.value)||0;
+
   let data=visibleContracts().filter(c=>{
     if(search&&!c.nome?.toLowerCase().includes(search)) return false;
     if(etF&&c.etapa!==etF) return false;
     if(tpF&&c.tipo!==tpF) return false;
     if(rsF&&c.resp!==rsF) return false;
+    // filtro de período (dias desde fechamento)
+    if(periodo>0&&c.fechamento){
+      const diasDesde=Math.round((new Date()-new Date(c.fechamento+'T00:00:00'))/864e5);
+      if(diasDesde>periodo) return false;
+    }
+    // filtro contratos ativos (excluir baixa e encerrado)
+    if(window._filtroCustom==='ativos'){
+      if(['baixa','encerrado'].includes(c.etapa)) return false;
+    }
     if(window._filtroDiasParto){
       const d=daysUntil(c.dpp);
-      if(window._filtroDiasParto===30 && !(d<=30 && !['concedido','protocolado','indeferido'].includes(c.etapa))) return false;
-      if(window._filtroDiasParto===90 && !(d>30 && d<=90 && !['concedido','protocolado','indeferido'].includes(c.etapa))) return false;
+      if(['baixa','encerrado','concedido'].includes(c.etapa)) return false;
+      if(window._filtroDiasParto===30 && !(d<=30&&!['protocolado','indeferido'].includes(c.etapa))) return false;
+      if(window._filtroDiasParto===90 && !(d>30&&d<=90&&!['protocolado','indeferido'].includes(c.etapa))) return false;
     }
-    if(window._filtroCustom){
+    if(window._filtroCustom&&window._filtroCustom!=='ativos'){
       if(window._filtroCustom==='guias_pendentes'){
-        // guia pendente: não qualidade, sem status de guia, não encerrado/baixa/concedido
         if(c.tipo==='qualidade') return false;
         if(c.guia_status) return false;
         if(['concedido','protocolado','indeferido','encerrado','baixa'].includes(c.etapa)) return false;
       }
       if(window._filtroCustom==='guias_escritorio'){
-        // escritório paga guia, urgente (parto em 45 dias), guia não paga
         if(c.paga!=='escritorio') return false;
         if(c.tipo==='qualidade') return false;
         if(c.guia_status) return false;
@@ -1843,8 +1864,29 @@ window.renderList = function(){
     }
     return true;
   });
+
+  // indicar filtro ativo
+  const filtroAtivo = window._filtroCustom||window._filtroDiasParto||etF||tpF||rsF||periodo;
+  const infoFiltro = $('listFiltroInfo');
+  if(infoFiltro){
+    if(filtroAtivo){
+      let desc = '';
+      if(window._filtroCustom==='ativos') desc='Contratos ativos (excluindo baixas e encerrados)';
+      else if(window._filtroCustom==='guias_pendentes') desc='Clientes com guia pendente';
+      else if(window._filtroCustom==='guias_escritorio') desc='Guias que o escritório pagará (≤45 dias)';
+      else if(window._filtroDiasParto===30) desc='Partos em até 30 dias';
+      else if(window._filtroDiasParto===90) desc='Partos entre 31 e 90 dias';
+      else if(etF) desc='Etapa: '+colLabel(etF);
+      if(periodo>0) desc+=(desc?' · ':'')+`Últimos ${periodo} dias`;
+      infoFiltro.textContent=`Mostrando: ${desc} (${data.length} resultado${data.length!==1?'s':''})`;
+      infoFiltro.style.display='block';
+    } else {
+      infoFiltro.style.display='none';
+    }
+  }
+
   $('listBody').innerHTML=data.map(c=>{
-    const docs=docList(c.tipo); const done=docs.filter((_,i)=>c.docs&&c.docs[i]).length;
+    const docs=docList(c); const done=docs.filter((_,i)=>c.docs&&c.docs[i]).length;
     const pct=Math.round(done/docs.length*100);
     return `<tr onclick="openPanel('${c.id}')">
       <td style="font-weight:500">${c.nome||'—'}</td>
