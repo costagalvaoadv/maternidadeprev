@@ -1,0 +1,2071 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MaternidadePrev · Gestão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F5F0;
+  --surface:#FFFFFF;
+  --surface2:#F0EDE6;
+  --border:#E2DDD5;
+  --border2:#CBC5BB;
+  --text:#1A1814;
+  --text2:#6B6560;
+  --text3:#A09A93;
+  --accent:#C94F6D;
+  --accent-bg:#FDF0F3;
+  --green:#3A7D44;
+  --green-bg:#EBF5ED;
+  --amber:#A0612A;
+  --amber-bg:#FEF3E7;
+  --blue:#1D5FA8;
+  --blue-bg:#EAF2FC;
+  --purple:#5B4BAD;
+  --purple-bg:#F0EEFB;
+  --red:#B83535;
+  --red-bg:#FDECEC;
+  --radius:10px;
+  --radius-lg:14px;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{font-family:'DM Sans',sans-serif;cursor:pointer}
+input,select,textarea{font-family:'DM Sans',sans-serif}
+
+/* ── AUTH SCREEN ── */
+#authScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:40px;width:100%;max-width:400px;box-shadow:var(--shadow)}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:32px}
+.auth-logo-icon{width:40px;height:40px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
+.auth-logo h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
+.auth-logo span{font-size:12px;color:var(--text2);font-weight:400}
+.auth-title{font-size:20px;font-weight:600;margin-bottom:6px;letter-spacing:-.4px}
+.auth-sub{font-size:13px;color:var(--text2);margin-bottom:28px}
+.form-field{margin-bottom:14px}
+.form-field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.form-field input{width:100%;padding:10px 13px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;background:var(--bg);color:var(--text);transition:border-color .15s}
+.form-field input:focus{outline:none;border-color:var(--accent);background:#fff}
+.btn-main{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:14px;font-weight:500;margin-top:4px;transition:opacity .15s}
+.btn-main:hover{opacity:.88}
+.btn-main:disabled{opacity:.5;cursor:not-allowed}
+.auth-error{background:var(--red-bg);color:var(--red);border:1px solid #F7C1C1;border-radius:var(--radius);padding:10px 13px;font-size:13px;margin-bottom:14px;display:none}
+
+/* ── APP SHELL ── */
+#app{display:none;flex-direction:column;min-height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:40}
+.topbar-logo{display:flex;align-items:center;gap:8px}
+.topbar-logo-icon{width:30px;height:30px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+.topbar-logo h1{font-size:14px;font-weight:600;letter-spacing:-.2px}
+.topbar-sep{flex:1}
+.topbar-user{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--accent)}
+.btn-logout{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);background:none}
+.btn-logout:hover{background:var(--surface2)}
+.alert-badge{background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center}
+
+/* ── TABS ── */
+.tabs-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;display:flex;gap:2px}
+.tab-btn{padding:10px 16px;font-size:13px;font-weight:500;color:var(--text2);border:none;background:none;border-bottom:2px solid transparent;transition:color .15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn:hover:not(.active){color:var(--text)}
+
+/* ── VIEWS ── */
+.view{display:none;flex:1}
+.view.active{display:block}
+
+/* ── KANBAN ── */
+.kanban-toolbar{padding:14px 20px;display:flex;align-items:center;gap:10px;background:var(--bg);border-bottom:1px solid var(--border)}
+.btn-new{display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:500}
+.btn-new:hover{opacity:.88}
+.filter-sel{padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)}
+.kanban-board{overflow-x:auto;padding:16px 20px;display:flex;gap:12px;align-items:flex-start;min-height:calc(100vh - 170px)}
+.kb-col{min-width:200px;max-width:200px;flex-shrink:0}
+.kb-col-head{font-size:11px;font-weight:600;padding:6px 10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;letter-spacing:.02em;text-transform:uppercase}
+.kb-col-body{display:flex;flex-direction:column;gap:7px;max-height:calc(100vh - 230px);overflow-y:auto;padding-right:2px}
+.kb-col-body::-webkit-scrollbar{width:3px}
+.kb-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.kb-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px;cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.kb-card:hover{box-shadow:var(--shadow);border-color:var(--border2)}
+.kb-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.kb-card-name{font-size:13px;font-weight:600;line-height:1.3}
+.urgdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.kb-card-body{font-size:11px;color:var(--text2);display:flex;flex-direction:column;gap:3px}
+.badge{display:inline-flex;align-items:center;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;white-space:nowrap}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-amber{background:var(--amber-bg);color:var(--amber)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.badge-purple{background:var(--purple-bg);color:var(--purple)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-gray{background:var(--surface2);color:var(--text2)}
+.badge-accent{background:var(--accent-bg);color:var(--accent)}
+.prog-bar{display:flex;align-items:center;gap:5px;margin-top:3px}
+.prog-track{flex:1;height:4px;background:var(--border);border-radius:2px}
+.prog-fill{height:4px;border-radius:2px;transition:width .3s}
+
+/* ── SIDE PANEL ── */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:60;backdrop-filter:blur(1px)}
+.panel-overlay.open{display:block}
+.side-panel{position:fixed;top:0;right:0;bottom:0;width:380px;background:var(--surface);border-left:1px solid var(--border);z-index:61;overflow-y:auto;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
+.panel-overlay.open .side-panel{transform:none}
+.sp-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--surface);z-index:5}
+.sp-avatar{width:38px;height:38px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--accent);flex-shrink:0}
+.sp-title{flex:1;font-size:15px;font-weight:600;line-height:1.2}
+.sp-sub{font-size:11px;color:var(--text2);margin-top:1px}
+.icon-btn{width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:none;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text2)}
+.icon-btn:hover{background:var(--surface2)}
+.sp-body{padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.sp-section{}
+.sp-section-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.info-item{background:var(--bg);border-radius:8px;padding:8px 10px}
+.info-key{font-size:10px;color:var(--text3);margin-bottom:2px}
+.info-val{font-size:12px;font-weight:500}
+.divider{border:none;border-top:1px solid var(--border)}
+
+/* checklist */
+.ck-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--bg);cursor:pointer;margin-bottom:5px;transition:background .12s}
+.ck-item:hover{background:var(--surface2)}
+.ck-item.done{opacity:.6}
+.ck-box{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:#fff;transition:background .12s,border-color .12s}
+.ck-box.checked{background:var(--green);border-color:var(--green)}
+.ck-label{font-size:12px;flex:1}
+.ck-item.done .ck-label{text-decoration:line-through;color:var(--text3)}
+
+/* etapa picker */
+.etapa-grid{display:flex;flex-direction:column;gap:4px}
+.etapa-opt{padding:8px 11px;border-radius:9px;border:1px solid var(--border);font-size:12px;background:var(--bg);cursor:pointer;transition:background .12s,border-color .12s;text-align:left}
+.etapa-opt:hover{background:var(--surface2)}
+.etapa-opt.active{background:var(--blue-bg);border-color:var(--blue);color:var(--blue);font-weight:500}
+
+/* obs */
+.obs-area{width:100%;border:1px solid var(--border);border-radius:var(--radius);padding:9px 11px;font-size:12px;background:var(--bg);color:var(--text);resize:vertical;min-height:60px;font-family:'DM Sans',sans-serif}
+.obs-area:focus{outline:none;border-color:var(--accent);background:#fff}
+.btn-save{padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-size:12px;font-weight:500}
+.btn-save:hover{opacity:.88}
+.btn-sm{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:none;color:var(--text2)}
+.btn-sm:hover{background:var(--surface2)}
+.btn-del{color:var(--red);border-color:#F7C1C1}
+.btn-del:hover{background:var(--red-bg)}
+.btn-row{display:flex;gap:7px;justify-content:flex-end;align-items:center}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:80;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.15)}
+.modal-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:2}
+.modal-header h2{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.modal-body{padding:18px 20px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.field.full{grid-column:1/-1}
+.field label{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);width:100%;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+.field textarea{resize:vertical;min-height:56px}
+.section-sep{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;padding-top:8px;border-top:1px solid var(--border)}
+
+/* ── DASHBOARD ── */
+.dash-wrap{padding:16px 20px;overflow-y:auto;flex:1}
+.dash-wrap.full{max-width:none}
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:24px}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;text-align:center}
+.metric-val{font-size:28px;font-weight:600;letter-spacing:-.5px;margin-bottom:3px}
+.metric-lbl{font-size:11px;color:var(--text2);font-weight:500}
+.dash-section-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.alert-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.alert-item:last-child{border-bottom:none}
+.alert-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.alert-name{font-size:13px;font-weight:600}
+.alert-sub{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* ── LIST ── */
+.list-wrap{padding:16px 20px}
+.list-filters{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.list-filters input{padding:7px 11px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text);width:200px}
+.list-filters input:focus{outline:none;border-color:var(--accent)}
+.list-filters select{padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+th{background:var(--surface2);padding:9px 12px;text-align:left;font-weight:600;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg);cursor:pointer}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text);color:#fff;padding:10px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── LOADING ── */
+.loading{display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--text2);font-size:14px;gap:10px}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── ADMIN badge ── */
+.role-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:var(--accent-bg);color:var(--accent)}
+
+.kb-card.indeferido-card{border-color:#FFAD5C;background:#1A1000}
+.kb-card.encerrado-card{border-color:#A0C4FF;background:#0D0D1A;opacity:.8}
+/* ── FINANCEIRO ── */
+.fin-parc{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:9px;border:1px solid var(--border);background:var(--bg);margin-bottom:5px}
+.fin-parc-num{width:22px;height:22px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.fin-parc-info{flex:1;font-size:12px}
+.fin-parc-val{font-size:12px;font-weight:600;color:var(--green)}
+.fin-parc-check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border2);cursor:pointer;flex-shrink:0}
+.fin-parc-check.paid{background:var(--green);border-color:var(--green)}
+.badge-pago{background:var(--green-bg);color:var(--green)}
+.badge-vence{background:var(--amber-bg);color:var(--amber)}
+.badge-atrasado{background:var(--red-bg);color:var(--red)}
+
+.metric-card.metric-link{cursor:pointer;transition:box-shadow .15s,transform .1s}
+.metric-card.metric-link:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-1px)}
+
+/* ── DASHBOARD COLUNAS ── */
+.dash-cols{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:start}
+.dash-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;min-width:0}
+.dash-col-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.dash-col-body{padding:6px 10px;max-height:460px;overflow-y:auto;font-size:12px}
+.dash-col-body::-webkit-scrollbar{width:3px}
+.dash-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.dash-col-body .alert-item{padding:7px 0;display:flex;align-items:flex-start;gap:7px;border-bottom:0.5px solid var(--border)}
+.dash-col-body .alert-item:last-child{border-bottom:none}
+.dash-col-body .alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.dash-col-body .alert-name{font-size:12px;font-weight:600;line-height:1.3}
+.dash-col-body .alert-sub{font-size:10px;color:var(--text2);margin-top:2px;line-height:1.4}
+@media(max-width:900px){.dash-cols{grid-template-columns:1fr 1fr}.dash-col:last-child{grid-column:1/-1}}
+@media(max-width:600px){.dash-cols{grid-template-columns:1fr}}
+
+/* ── EXPORT BTNS ── */
+.btn-export{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text2);font-weight:500;cursor:pointer}
+.btn-export:hover{background:var(--surface2)}
+.btn-export-pdf{background:var(--red-bg);color:var(--red);border-color:#F7C1C1}
+.btn-export-pdf:hover{opacity:.85}
+
+/* ── RELATÓRIOS ── */
+.rel-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column}
+.rel-card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
+.rel-card-title{font-size:14px;font-weight:600;margin-bottom:4px}
+.rel-card-sub{font-size:12px;color:var(--text2);line-height:1.4;flex:1}
+
+/* ── PERCA badge ── */
+.badge-perca{background:#2D1F1F;color:#F7A0A0}
+.kb-card.perca{border-color:#B83535;opacity:.7}
+
+/* ── DOC ALERT no card ── */
+.doc-alert-tag{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 6px;border-radius:20px;font-weight:600;background:#FFF3CD;color:#856404;border:1px solid #FFEAA7;margin-top:3px}
+
+/* responsive */
+@media(max-width:600px){
+  .kanban-board{padding:12px}.frow{grid-template-columns:1fr}
+  .side-panel{width:100%}.dash-wrap{padding:14px}
+  .metrics-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ════ AUTH ════ -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">♥</div>
+      <div>
+        <h1>MaternidadePrev</h1>
+        <span>Gestão de Salário Maternidade</span>
+      </div>
+    </div>
+    <h2 class="auth-title">Entrar</h2>
+    <p class="auth-sub">Acesso restrito à equipe do escritório</p>
+    <div class="auth-error" id="authError"></div>
+    <div class="form-field">
+      <label>E-mail</label>
+      <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email">
+    </div>
+    <div class="form-field">
+      <label>Senha</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-main" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:12px;color:var(--text2)">Esqueceu a senha? </span>
+      <a href="#" style="font-size:12px;color:var(--accent);font-weight:500" onclick="doRecuperarSenha();return false;">Recuperar por e-mail</a>
+    </div>
+    <div id="recMsg" style="display:none;margin-top:12px;background:var(--green-bg);color:var(--green);border:1px solid #C0DD97;border-radius:var(--radius);padding:10px 13px;font-size:12px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- ════ APP ════ -->
+<div id="app">
+  <!-- topbar -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <div class="topbar-logo-icon">♥</div>
+      <h1>MaternidadePrev</h1>
+    </div>
+    <div class="topbar-sep"></div>
+    <div id="alertBadgeWrap" style="display:none">
+      <div class="alert-badge" id="alertBadgeNum">0</div>
+    </div>
+    <div class="topbar-user">
+      <div class="avatar" id="topAvatar">--</div>
+      <span id="topName" style="font-size:13px;font-weight:500"></span>
+      <span class="role-badge" id="topRole"></span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Sair</button>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="showView('kanban',this)">Kanban</button>
+    <button class="tab-btn" onclick="showView('dashboard',this)">Dashboard</button>
+    <button class="tab-btn" onclick="showView('lista',this)">Contratos</button>
+    <button class="tab-btn" onclick="showView('relatorios',this)">Relatórios</button>
+    <button class="tab-btn" id="tabFinanceiro" style="display:none" onclick="showView('financeiro',this)">💰 Financeiro</button>
+    <button class="tab-btn" id="tabAdmin" style="display:none" onclick="showView('admin',this)">Usuários</button>
+  </div>
+
+  <!-- ── KANBAN VIEW ── -->
+  <div class="view active" id="view-kanban">
+    <div class="kanban-toolbar">
+      <button class="btn-new" onclick="openNewModal()">+ Novo contrato</button>
+      <select class="filter-sel" id="kbFilterResp" onchange="renderKanban()">
+        <option value="">Todos os responsáveis</option>
+      </select>
+      <select class="filter-sel" id="kbFilterTipo" onchange="renderKanban()">
+        <option value="">Todos os tipos</option>
+        <option value="qualidade">Já segurada</option>
+        <option value="contrib-unica">Contrib. única</option>
+        <option value="clt-extra">CLT + individual</option>
+      </select>
+    </div>
+    <div class="kanban-board" id="kanbanBoard"></div>
+  </div>
+
+  <!-- ── DASHBOARD VIEW ── -->
+  <div class="view" id="view-dashboard">
+    <div class="dash-wrap full">
+      <div class="metrics-row" id="metricsRow"></div>
+      <!-- colunas lado a lado -->
+      <div class="dash-cols">
+        <div class="dash-col">
+          <div class="dash-col-title">⚑ Alertas urgentes</div>
+          <div class="dash-col-body" id="alertsCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">♥ Nascimentos — 60 dias</div>
+          <div class="dash-col-body" id="birthCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">💳 Guias escritório — 45 dias</div>
+          <div class="dash-col-body" id="dashGuiasCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">🎂 Aniversários — 30 dias</div>
+          <div class="dash-col-body" id="dashAnivCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title">⚑ Baixas e perdas</div>
+          <div class="dash-col-body" id="dashBaixasCard"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LISTA VIEW ── -->
+  <div class="view" id="view-lista">
+    <div class="list-wrap">
+      <div class="list-filters">
+        <input type="text" id="listSearch" placeholder="Buscar cliente..." oninput="renderList()">
+        <select id="listEtapa" onchange="renderList()"><option value="">Todas as etapas</option></select>
+        <select id="listTipo" onchange="renderList()">
+          <option value="">Todos os tipos</option>
+          <option value="qualidade">Já segurada</option>
+          <option value="contrib-unica">Contrib. única</option>
+          <option value="clt-extra">CLT + ind.</option>
+        </select>
+        <select id="listResp" onchange="renderList()"><option value="">Todos os resp.</option></select>
+        <button class="btn-export" onclick="exportExcel()">⬇ Excel</button>
+        <button class="btn-export btn-export-pdf" onclick="exportListaPDF()">⬇ PDF</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col style="width:20%"><col style="width:18%"><col style="width:13%">
+            <col style="width:10%"><col style="width:9%"><col style="width:11%"><col style="width:11%"><col style="width:8%">
+          </colgroup>
+          <thead><tr>
+            <th>Cliente</th><th>Etapa</th><th>Tipo</th>
+            <th>DPP</th><th>Falta</th><th>Docs</th><th>Guia</th><th>Resp.</th>
+          </tr></thead>
+          <tbody id="listBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RELATÓRIOS VIEW ── -->
+  <div class="view" id="view-relatorios">
+    <div class="dash-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <div style="font-size:18px;font-weight:600;letter-spacing:-.3px">Relatórios</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px">Gere e exporte relatórios do escritório</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:24px">
+        <div class="rel-card">
+          <div class="rel-card-icon" style="background:#FDF0F3;color:#C94F6D">📋</div>
+          <div class="rel-card-title">Listagem completa</div>
+          <div class="rel-card-sub">Todos os contratos com etapa, tipo, DPP e responsável</div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn-export" onclick="exportExcel()">⬇ Excel</button>
+            <button class="btn-export btn-export-pdf" onclick="exportListaPDF()">⬇ PDF</button>
+          </div>
+        </div>
+        <div class="rel-card">
+          <div class="rel-card-icon" style="background:#FDECEC;color:#B83535">⚑</div>
+          <div class="rel-card-title">Alertas do mês</div>
+          <div class="rel-card-sub">Partos previstos, guias pendentes e ações urgentes</div>
+          <div style="margin-top:12px">
+            <button class="btn-export btn-export-pdf" onclick="exportAlertasPDF()">⬇ PDF</button>
+          </div>
+        </div>
+        <div class="rel-card">
+          <div class="rel-card-icon" style="background:#EBF5ED;color:#3A7D44">♥</div>
+          <div class="rel-card-title">Nascimentos previstos</div>
+          <div class="rel-card-sub">Clientes com parto nos próximos 90 dias</div>
+          <div style="margin-top:12px">
+            <button class="btn-export btn-export-pdf" onclick="exportNascimentosPDF()">⬇ PDF</button>
+          </div>
+        </div>
+        <div class="rel-card">
+          <div class="rel-card-icon" style="background:#EAF2FC;color:#1D5FA8">📊</div>
+          <div class="rel-card-title">Resumo gerencial</div>
+          <div class="rel-card-sub">Métricas, produtividade por responsável e status geral</div>
+          <div style="margin-top:12px">
+            <button class="btn-export btn-export-pdf" onclick="exportResumoPDF()">⬇ PDF</button>
+          </div>
+        </div>
+      </div>
+      <div class="dash-section-title">Pré-visualização — Nascimentos próximos 90 dias</div>
+      <div class="alert-card" id="relNascCard"></div>
+    </div>
+  </div>
+
+  <!-- ── FINANCEIRO VIEW (gestora only) ── -->
+  <div class="view" id="view-financeiro">
+    <div class="dash-wrap" style="max-width:1100px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:18px;font-weight:600;letter-spacing:-.3px">Financeiro</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Visível apenas para a gestora</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="finMesFiltro" onchange="renderFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
+          <button class="btn-export btn-export-pdf" onclick="exportFinanceiroPDF()">⬇ PDF</button>
+        </div>
+      </div>
+
+      <!-- métricas financeiras -->
+      <div class="metrics-row" id="finMetrics"></div>
+
+      <!-- próximos recebimentos -->
+      <div class="dash-section-title" style="margin-top:4px">📅 Recebimentos previstos — próximos 60 dias</div>
+      <div class="alert-card" id="finProxCard"></div>
+
+      <!-- honorários em aberto -->
+      <div class="dash-section-title" style="margin-top:4px">⚠ Honorários em aberto (não recebidos)</div>
+      <div class="alert-card" id="finAbertoCard"></div>
+      <div class="dash-section-title" style="margin-top:4px">🚨 Contratos inadimplentes (atraso &gt; 7 dias)</div>
+      <div class="alert-card" id="finInadCard"></div>
+
+      <!-- tabela completa de benefícios concedidos -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;margin-top:4px">
+        <div class="dash-section-title" style="margin-bottom:0">📋 Todos os benefícios concedidos</div>
+        <button class="btn-new" style="font-size:12px;padding:6px 14px" onclick="openConcessaoModal()">+ Registrar concessão</button>
+      </div>
+      <div class="table-wrap" style="margin-bottom:20px">
+        <table>
+          <colgroup>
+            <col style="width:16%"><col style="width:10%"><col style="width:9%"><col style="width:9%">
+            <col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%">
+          </colgroup>
+          <thead><tr>
+            <th>Cliente</th><th>Modalidade</th><th>Benef. bruto</th><th>Benef. líquido</th>
+            <th>Parcelas</th><th>Honor. total</th><th>Honor. receb.</th><th>Honor. em aberto</th>
+            <th>Próx. vencimento</th><th>Status</th>
+          </tr></thead>
+          <tbody id="finTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONCESSÃO/FINANCEIRO -->
+  <div class="modal-overlay" id="concessaoModalOverlay" onclick="closeConcessaoModalBg(event)">
+    <div class="modal" style="max-width:580px">
+      <div class="modal-header">
+        <h2 id="concessaoModalTitle">Registrar concessão</h2>
+        <button class="icon-btn" onclick="closeConcessaoModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-sep">Selecionar cliente</div>
+        <div class="field full">
+          <label>Cliente (contrato concedido)</label>
+          <select id="fc_cliente" onchange="preencherDadosCliente()"></select>
+        </div>
+        <div id="fc_preview" style="display:none;background:var(--bg);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text2);line-height:1.7"></div>
+
+        <div class="section-sep">Dados do benefício</div>
+        <div class="frow">
+          <div class="field"><label>Valor bruto do benefício (R$)</label><input id="fc_bruto" type="number" step="0.01" placeholder="1621.00"></div>
+          <div class="field"><label>Modalidade honorários</label>
+            <select id="fc_modalidade">
+              <option value="30">Cliente pagou guia → 30%</option>
+              <option value="40">Escritório pagou guia → 40%</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-sep" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Parcelas — preencha manualmente</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <label style="font-size:11px;color:var(--text2)">Nº parcelas:</label>
+            <select id="fc_nparcelas" onchange="gerarCamposParcelas()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+        </div>
+        <div id="fc_parcelas_manual" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn-sm" onclick="closeConcessaoModal()">Cancelar</button>
+          <button class="btn-save" onclick="salvarConcessao()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ADMIN VIEW ── -->
+  <div class="view" id="view-admin">
+    <div class="dash-wrap">
+      <div class="dash-section-title">Gerenciar usuários</div>
+      <div class="alert-card" id="userListCard">
+        <div class="loading"><div class="spinner"></div> Carregando...</div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="dash-section-title">Cadastrar novo usuário</div>
+        <div class="alert-card">
+          <div class="frow">
+            <div class="field"><label>Nome</label><input id="nu_nome" placeholder="Nome completo"></div>
+            <div class="field"><label>E-mail</label><input id="nu_email" type="email" placeholder="email@exemplo.com"></div>
+          </div>
+          <div class="frow">
+            <div class="field"><label>Senha inicial</label><input id="nu_senha" type="password" placeholder="Mínimo 6 caracteres"></div>
+            <div class="field"><label>Perfil</label>
+              <select id="nu_role">
+                <option value="comercial">Comercial</option>
+                <option value="operacional">Operacional</option>
+                <option value="gestora">Gestora (acesso total)</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-row"><button class="btn-save" onclick="createUser()">Cadastrar usuário</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SIDE PANEL ── -->
+  <div class="panel-overlay" id="panelOverlay" onclick="closePanelOverlay(event)">
+    <div class="side-panel" id="sidePanel"></div>
+  </div>
+
+  <!-- ── NEW/EDIT MODAL ── -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModalOverlay(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Novo contrato</h2>
+        <button class="icon-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="section-sep">Dados pessoais</div>
+        <div id="cpf_alerta" style="display:none;background:#FDECEC;color:#B83535;border:1px solid #F7C1C1;border-radius:var(--radius);padding:8px 12px;font-size:12px;margin-bottom:10px;cursor:pointer"></div>
+
+        <div class="frow">
+          <div class="field"><label>Nome completo</label><input id="f_nome" placeholder="Nome da cliente"></div>
+          <div class="field"><label>Data de nascimento</label><input id="f_dtnasc" type="date"></div>
+        </div>
+
+        <div class="frow">
+          <div class="field"><label>CPF</label><input id="f_cpf" placeholder="000.000.000-00" oninput="mascaraCPF(this)" onblur="verificarCPFDuplicado()" onpaste="setTimeout(()=>{mascaraCPF(this);verificarCPFDuplicado()},10)"></div>
+          <div class="field"><label>Senha gov.br / INSS</label><input id="f_senha" placeholder="Senha de acesso"></div>
+        </div>
+
+        <div class="frow">
+          <div class="field"><label>Telefone / WhatsApp</label><input id="f_tel" placeholder="(81) 9 0000-0000" oninput="mascaraTel(this)" onpaste="setTimeout(()=>mascaraTel(this),10)"></div>
+          <div class="field"><label>Tel. para recado</label><input id="f_tel2" placeholder="(81) 9 0000-0000" oninput="mascaraTel(this)" onpaste="setTimeout(()=>mascaraTel(this),10)"></div>
+        </div>
+
+        <div class="field full">
+          <label>Quem é o contato para recado? (ex: mãe — Maria, esposo — João)</label>
+          <input id="f_tel2desc" placeholder="Ex: mãe — Maria">
+        </div>
+
+        <div class="section-sep">Gestação e benefício</div>
+        <div class="frow">
+          <div class="field"><label>Previsão de parto (DPP)</label><input id="f_dpp" type="date"></div>
+          <div class="field"><label>Mês de gestação atual</label><input id="f_mesgest" type="number" min="1" max="9" placeholder="Ex: 4"></div>
+        </div>
+
+        <div class="field full">
+          <label>Tipo de situação previdenciária</label>
+          <select id="f_tipo" onchange="toggleGuiaFields()">
+            <option value="qualidade">Já está na qualidade de segurada (não precisa contribuir)</option>
+            <option value="contrib-unica">Precisa fazer contribuição única ao INSS</option>
+            <option value="clt-extra">CLT + quer 2º benefício como contrib. individual</option>
+          </select>
+        </div>
+
+        <div class="field full" id="f_subtipo_row">
+          <label>Especificar situação (define o checklist)</label>
+          <select id="f_subtipo">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+
+        <div id="guia_fields" style="display:none">
+          <div class="frow">
+            <div class="field"><label>Mês competência da guia</label><input id="f_guia_mes" type="month"></div>
+            <div class="field"><label>Quem paga a guia</label>
+              <select id="f_paga">
+                <option value="escritorio">Escritório adianta</option>
+                <option value="cliente">Cliente paga</option>
+              </select>
+            </div>
+          </div>
+          <div class="frow">
+            <div class="field"><label>Valor da guia (R$)</label><input id="f_guia_val" type="number" placeholder="230"></div>
+            <div class="field"><label>Status da guia</label>
+              <select id="f_guia_status">
+                <option value="">Não gerada</option>
+                <option value="enviada">Enviada ao cliente</option>
+                <option value="paga">Paga ✓</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="section-sep">Contrato</div>
+        <div class="frow">
+          <div class="field"><label>Data de fechamento</label><input id="f_fechamento" type="date"></div>
+          <div class="field"><label>Responsável</label><select id="f_resp"></select></div>
+        </div>
+        <div class="field full"><label>Link Google Drive</label><input id="f_drive" placeholder="https://drive.google.com/..."></div>
+        <div class="field full"><label>Observações</label><textarea id="f_obs" placeholder="Quando nos procurou, situação especial, anotações..."></textarea></div>
+        <div class="btn-row" style="margin-top:6px">
+          <button class="btn-sm" onclick="closeModal()">Cancelar</button>
+          <button class="btn-save" onclick="saveContract()">Salvar contrato</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ══════════ FIREBASE ══════════ -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+         createUserWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs,
+         addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js';
+
+// ════════════════════════════════════════
+// 🔥 COLE AQUI AS SUAS CONFIGURAÇÕES FIREBASE
+// (Firebase Console → Configurações do projeto → Seus apps → SDK)
+// ════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyB1TqPfY1x2ce_lFel17cZYh6UOpu-Re5w",
+  authDomain: "maternidadeprev-8b884.firebaseapp.com",
+  projectId: "maternidadeprev-8b884",
+  storageBucket: "maternidadeprev-8b884.firebasestorage.app",
+  messagingSenderId: "193110428198",
+  appId: "1:193110428198:web:dedc0f9a8e56e6072ef4e7",
+  measurementId: "G-DR11S6Y3K4"
+};
+// ════════════════════════════════════════
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+// ── state ──
+let currentUser = null;
+let currentProfile = null;
+let contracts = [];
+let usersMap = {};   // uid → {nome, role}
+let unsubContracts = null;
+let editingId = null;
+
+// ── helpers ──
+const $ = id => document.getElementById(id);
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+function isGestora(){ return currentProfile?.role==='gestora'; }
+function canEdit(c){
+  if(isGestora()) return true;
+  return c.createdBy === currentUser.uid;
+}
+function initials(name){
+  if(!name) return '??';
+  return name.trim().split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+}
+function daysUntil(d){
+  if(!d) return 9999;
+  return Math.round((new Date(d+'T00:00:00') - new Date()) / 864e5);
+}
+function urgDotColor(c){
+  if(['baixa','concedido','protocolado','indeferido','encerrado'].includes(c.etapa)) return null;
+  const d=daysUntil(c.dpp);
+  return d<=30?'#B83535':d<=60?'#A0612A':d<=90?'#D4900A':'#3A7D44';
+}
+function tipoBadge(t){
+  if(t==='qualidade') return '<span class="badge badge-green">Já segurada</span>';
+  if(t==='contrib-unica') return '<span class="badge badge-amber">Contrib. única</span>';
+  return '<span class="badge badge-blue">CLT + ind.</span>';
+}
+function monthsToGo(dpp){
+  const d=daysUntil(dpp);
+  if(d<0) return 'Nasceu';
+  if(d===0) return 'Hoje';
+  if(d<=35) return d+'d';
+  return Math.round(d/30.4)+'m';
+}
+
+// ── CHECKLISTS ──
+const DOCS_BASE = [
+  'RG ou CNH',
+  'CPF',
+  'Comprovante de endereço (recente)',
+  'Senha MeuINSS / gov.br',
+  'Certidão de nascimento da criança (após parto)',
+  'Procuração assinada',
+  'Contrato de honorários assinado',
+];
+const DOCS_GUIA = [
+  'Guia GPS / DAS gerada',
+  'Comprovante de pagamento da guia',
+];
+
+function docList(c){
+  const tipo = typeof c==='string'?c:c?.tipo;
+  const sub  = typeof c==='object'?c?.subtipo:'';
+
+  if(tipo==='qualidade'){
+    if(sub==='graca')       return [...DOCS_BASE,'CTPS (Carteira de Trabalho)','CNIS (Cadastro Nacional de Informações Sociais)'];
+    if(sub==='agricultora') return [...DOCS_BASE,'Prova rural emitida ANTES do nascimento (ex: DAP, bloco de notas, ITR)'];
+    return [...DOCS_BASE];
+  }
+  if(tipo==='contrib-unica'){
+    return [...DOCS_BASE,...DOCS_GUIA];
+  }
+  if(tipo==='clt-extra'){
+    const base=[...DOCS_BASE,'CTPS ou contrato de trabalho CLT','Holerite recente',...DOCS_GUIA];
+    if(sub==='renda-extra') return [...base,'Comprovante de renda extra (contrato, recibo ou declaração)'];
+    return base;
+  }
+  return [...DOCS_BASE];
+}
+
+function getImprescindIdx(c){
+  const list=docList(c);
+  const palavras=['RG ou CNH','CPF','Comprovante de endereço','Senha MeuINSS','Certidão de nascimento'];
+  return list.map((d,i)=>palavras.some(k=>d.startsWith(k))?i:-1).filter(i=>i>=0);
+}
+function hasPendenciaImprescindivel(c){
+  return getImprescindIdx(c).some(i=>!(c.docs&&c.docs[i]));
+}
+
+
+
+const COLS = [
+  {id:'fechado',      label:'Contrato fechado',            bg:'#F0EDE6',color:'#6B6560'},
+  {id:'guia-enviada', label:'Guia enviada / aguard. pgto', bg:'#F0EEFB',color:'#5B4BAD'},
+  {id:'guia-paga',    label:'Guia paga · aguard. nasc.',   bg:'#EBF5ED',color:'#3A7D44'},
+  {id:'nasceu',       label:'Nasceu · protocolar ⚑',      bg:'#FDECEC',color:'#B83535'},
+  {id:'protocolado',  label:'Protocolado',                  bg:'#EAF2FC',color:'#1D5FA8'},
+  {id:'concedido',    label:'Concedido ✓',                 bg:'#C0DD97',color:'#27500A'},
+  {id:'indeferido',   label:'Indeferido → Recurso',        bg:'#2D1A00',color:'#FFAD5C'},
+  {id:'encerrado',    label:'Encerrado ✓✓',                bg:'#1A1A2E',color:'#A0C4FF'},
+  {id:'baixa',        label:'Baixas / Perdas',              bg:'#2D1F1F',color:'#F7A0A0'},
+];
+
+// Quantos dias o contrato está na etapa 'protocolado'
+function diasProtocolado(c){
+  if(c.etapa!=='protocolado') return 0;
+  if(!c.dataProtocolo) return 0;
+  return Math.round((new Date()-new Date(c.dataProtocolo+'T00:00:00'))/864e5);
+}
+function alertaProtocolo(c){
+  return c.etapa==='protocolado' && diasProtocolado(c)>=30;
+}
+
+// ── AUTH ──
+window.doLogin = async function(){
+  const email=$('loginEmail').value.trim();
+  const pass=$('loginPassword').value;
+  const err=$('authError');
+  const btn=$('loginBtn');
+  err.style.display='none';
+  btn.disabled=true; btn.textContent='Entrando...';
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch(e){
+    err.textContent = e.code==='auth/invalid-credential'?'E-mail ou senha incorretos.':e.message;
+    err.style.display='block';
+    btn.disabled=false; btn.textContent='Entrar';
+  }
+};
+$('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+window.doRecuperarSenha = async function(){
+  const email = $('loginEmail').value.trim();
+  const msg = $('recMsg');
+  const err = $('authError');
+  err.style.display='none';
+  if(!email){
+    err.textContent='Digite seu e-mail acima antes de recuperar a senha.';
+    err.style.display='block'; return;
+  }
+  try{
+    await sendPasswordResetEmail(auth, email);
+    msg.textContent=`✓ E-mail de recuperação enviado para ${email}. Verifique sua caixa de entrada (e o spam).`;
+    msg.style.display='block';
+  } catch(e){
+    err.textContent = e.code==='auth/user-not-found'?'E-mail não encontrado no sistema.':e.message;
+    err.style.display='block';
+  }
+};
+
+window.doLogout = async function(){
+  if(unsubContracts) unsubContracts();
+  if(unsubConcessoes) unsubConcessoes();
+  await signOut(auth);
+};
+
+onAuthStateChanged(auth, async user => {
+  if(user){
+    currentUser = user;
+    const snap = await getDoc(doc(db,'users',user.uid));
+    currentProfile = snap.exists() ? snap.data() : {nome:user.email, role:'comercial'};
+    $('authScreen').style.display='none';
+    $('app').style.display='flex';
+    $('app').style.flexDirection='column';
+    $('topAvatar').textContent = initials(currentProfile.nome);
+    $('topName').textContent = currentProfile.nome;
+    $('topRole').textContent = currentProfile.role==='gestora'?'Gestora':currentProfile.role==='operacional'?'Operacional':'Comercial';
+    if(isGestora()){ $('tabAdmin').style.display=''; $('tabFinanceiro').style.display=''; }
+    await loadUsers();
+    subscribeContracts();
+    if(isGestora()) subscribeConcessoes();
+  } else {
+    currentUser=null; currentProfile=null; contracts=[];
+    $('authScreen').style.display='flex';
+    $('app').style.display='none';
+    $('loginBtn').disabled=false; $('loginBtn').textContent='Entrar';
+  }
+});
+
+// ── LOAD USERS ──
+async function loadUsers(){
+  usersMap={};
+  const snaps = await getDocs(collection(db,'users'));
+  snaps.forEach(d=>{ usersMap[d.id]=d.data(); });
+  populateRespSelects();
+}
+
+function populateRespSelects(){
+  const opts = Object.entries(usersMap).map(([uid,u])=>`<option value="${uid}">${u.nome}</option>`).join('');
+  ['kbFilterResp','listResp','f_resp'].forEach(id=>{
+    const el=$(id); if(!el) return;
+    const prev = el.value;
+    if(id==='kbFilterResp'||id==='listResp'){
+      el.innerHTML='<option value="">'+( id==='kbFilterResp'?'Todos os responsáveis':'Todos os resp.')+'</option>'+opts;
+    } else {
+      el.innerHTML=opts;
+    }
+    el.value=prev||currentUser.uid;
+  });
+}
+
+// ── MÁSCARAS ──
+window.mascaraCPF = function(el){
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>9) v=v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
+  else if(v.length>6) v=v.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');
+  else if(v.length>3) v=v.replace(/(\d{3})(\d{1,3})/,'$1.$2');
+  el.value=v;
+};
+window.mascaraTel = function(el){
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>10) v=v.replace(/(\d{2})(\d{5})(\d{4})/,'($1) $2-$3');
+  else if(v.length>6) v=v.replace(/(\d{2})(\d{4,5})(\d{0,4})/,'($1) $2-$3');
+  else if(v.length>2) v=v.replace(/(\d{2})(\d*)/,'($1) $2');
+  else if(v.length>0) v='('+v;
+  el.value=v;
+};
+
+window.verificarCPFDuplicado = function(){
+  if(editingId) return; // edição: não bloquear
+  const cpf = $('f_cpf').value.replace(/\D/g,'');
+  if(cpf.length<11) { $('cpf_alerta').style.display='none'; return; }
+  const existe = contracts.find(c=>c.cpf&&c.cpf.replace(/\D/g,'')===cpf);
+  const alerta = $('cpf_alerta');
+  if(existe){
+    alerta.style.display='block';
+    alerta.innerHTML=`⚠ CPF já cadastrado: <strong>${existe.nome}</strong> — etapa: ${colLabel(existe.etapa)}. Clique aqui para abrir.`;
+    alerta.onclick=()=>{ closeModal(); openPanel(existe.id); };
+  } else {
+    alerta.style.display='none';
+  }
+};
+
+// ── CONTRACTS REALTIME ──
+function subscribeContracts(){
+  const q = query(collection(db,'contracts'), orderBy('createdAt','desc'));
+  unsubContracts = onSnapshot(q, snap=>{
+    contracts=[];
+    snap.forEach(d=>contracts.push({id:d.id,...d.data()}));
+    renderKanban(); renderDashboard(); renderList(); updateAlertBadge();
+  });
+}
+
+// ── VIEWS ──
+window.showView = function(v,el){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-'+v).classList.add('active'); el.classList.add('active');
+  if(v==='admin') renderAdminUsers();
+  if(v==='dashboard') renderDashboard();
+  if(v==='lista') renderList();
+  if(v==='relatorios') renderRelatorios();
+  if(v==='financeiro'){ if(isGestora()) renderFinanceiro(); }
+};
+
+function fmt(v){ return 'R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function addMonths(dateStr,n){
+  if(!dateStr) return '—';
+  const d=new Date(dateStr+'T12:00:00'); d.setMonth(d.getMonth()+n); return d.toISOString().split('T')[0];
+}
+function daysUntilDate(dateStr){
+  if(!dateStr) return 9999;
+  return Math.round((new Date(dateStr+'T00:00:00')-new Date())/864e5);
+}
+function gerarParcelas(c){
+  // parcelas manuais salvas diretamente no objeto
+  if(c.parcelasManual && Array.isArray(c.parcelasManual)){
+    return c.parcelasManual.map((p,i)=>({
+      num:i+1,
+      dtCliente:p.dt||'',
+      valorBenef:parseFloat(p.valorBenef)||0,
+      honorario:parseFloat(p.honorario)||0,
+      pago:p.pago||false,
+      dtPago:p.dtPago||'',
+    }));
+  }
+  // retrocompatibilidade com formato antigo
+  const n=parseInt(c.parcelas)||4;
+  const valorParc=parseFloat(c.liquido)||0;
+  const honParc=valorParc*(parseInt(c.modalidade)||30)/100;
+  return Array.from({length:n},(_,i)=>({
+    num:i+1, dtCliente:addMonths(c.data1,i),
+    valorBenef:valorParc, honorario:honParc,
+    pago:c.pgtos&&c.pgtos[i]?true:false,
+    dtPago:c.pgtos&&c.pgtos[i]?.dt||'',
+  }));
+}
+
+window.gerarCamposParcelas = function(){
+  const n = parseInt($('fc_nparcelas').value)||4;
+  const conc = editingConcessaoId ? concessoes.find(x=>x.id===editingConcessaoId) : null;
+  const existentes = conc?.parcelasManual || [];
+  let html = '';
+  for(let i=0;i<n;i++){
+    const p = existentes[i]||{};
+    const pago = p.pago||false;
+    html += `<div class="fin-parc" style="display:grid;grid-template-columns:24px 1fr 100px 110px 90px auto;gap:6px;align-items:center">
+      <div class="fin-parc-num">${i+1}</div>
+      <input type="date" id="fp_dt_${i}" value="${p.dt||''}" style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)" placeholder="Data pagto INSS">
+      <input type="number" id="fp_val_${i}" value="${p.valorBenef||''}" placeholder="Valor R$" step="0.01" style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+      <input type="number" id="fp_hon_${i}" value="${p.honorario||''}" placeholder="Honorário R$" step="0.01" style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer">
+        <input type="checkbox" id="fp_pago_${i}" ${pago?'checked':''} style="width:14px;height:14px"> Recebido
+      </label>
+    </div>`;
+  }
+  $('fc_parcelas_manual').innerHTML = html;
+};
+
+window.openConcessaoModal = function(id){
+  if(!isGestora()) return;
+  editingConcessaoId=id||null;
+  const concedidos=contracts.filter(c=>c.etapa==='concedido');
+  const sel=$('fc_cliente');
+  const todasOpts = id ? contracts : concedidos;
+  sel.innerHTML = todasOpts.map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  if(id){
+    $('concessaoModalTitle').textContent='Editar concessão';
+    const c=concessoes.find(x=>x.id===id); if(!c) return;
+    sel.value=c.contractId;
+    $('fc_bruto').value=c.bruto||'';
+    $('fc_modalidade').value=c.modalidade||'30';
+    const n = c.parcelasManual ? c.parcelasManual.length : (parseInt(c.parcelas)||4);
+    $('fc_nparcelas').value=n;
+  } else {
+    $('concessaoModalTitle').textContent='Registrar concessão';
+    $('fc_bruto').value='';
+    $('fc_modalidade').value='30';
+    $('fc_nparcelas').value='4';
+  }
+  preencherDadosCliente();
+  gerarCamposParcelas();
+  $('concessaoModalOverlay').classList.add('open');
+};
+
+window.salvarConcessao=async function(){
+  if(!isGestora()) return;
+  const cid=$('fc_cliente').value; if(!cid){alert('Selecione a cliente.');return;}
+  const cont=contracts.find(x=>x.id===cid);
+  const n=parseInt($('fc_nparcelas').value)||4;
+  const parcelasManual=[];
+  for(let i=0;i<n;i++){
+    parcelasManual.push({
+      dt:$(`fp_dt_${i}`)?.value||'',
+      valorBenef:parseFloat($(`fp_val_${i}`)?.value)||0,
+      honorario:parseFloat($(`fp_hon_${i}`)?.value)||0,
+      pago:$(`fp_pago_${i}`)?.checked||false,
+      dtPago:$(`fp_pago_${i}`)?.checked ? new Date().toISOString().split('T')[0] : '',
+    });
+  }
+  const data={
+    contractId:cid, nomeCliente:cont?.nome||'',
+    bruto:parseFloat($('fc_bruto').value)||0,
+    modalidade:$('fc_modalidade').value,
+    parcelasManual,
+  };
+  try{
+    if(editingConcessaoId){
+      await updateDoc(doc(db,'concessoes',editingConcessaoId),data);
+      toast('Concessão atualizada ✓');
+    } else {
+      data.createdAt=serverTimestamp();
+      await addDoc(collection(db,'concessoes'),data);
+      if(cont) await updateDoc(doc(db,'contracts',cid),{etapa:'concedido'});
+      toast('Concessão registrada ✓');
+    }
+    closeConcessaoModal();
+  } catch(e){ alert('Erro: '+e.message); }
+};
+
+// ── KANBAN ──
+function visibleContracts(){
+  if(isGestora()) return contracts;
+  return contracts.filter(c=>c.createdBy===currentUser.uid||c.resp===currentUser.uid);
+}
+
+window.renderKanban = function(){
+  const respF = $('kbFilterResp')?.value||'';
+  const tipoF = $('kbFilterTipo')?.value||'';
+  let data = visibleContracts().filter(c=>{
+    if(respF && c.resp!==respF) return false;
+    if(tipoF && c.tipo!==tipoF) return false;
+    return true;
+  });
+  $('kanbanBoard').innerHTML = COLS.map(col=>{
+    const cards = data.filter(c=>c.etapa===col.id);
+    return `<div class="kb-col">
+      <div class="kb-col-head" style="background:${col.bg};color:${col.color}">
+        <span>${col.label}</span><span>${cards.length}</span>
+      </div>
+      <div class="kb-col-body">
+        ${cards.map(c=>{
+          const docs=docList(c.tipo); const done=docs.filter((_,i)=>c.docs&&c.docs[i]).length; const total=docs.length;
+          const pct=Math.round(done/total*100);
+          const respName = usersMap[c.resp]?.nome||c.resp||'—';
+          const pendImprescind = hasPendenciaImprescindivel(c) && c.etapa!=='baixa';
+          const isBaixa = c.etapa==='baixa';
+          const isIndeferido = c.etapa==='indeferido';
+          const isEncerrado = c.etapa==='encerrado';
+          const alertaProt = alertaProtocolo(c);
+          const dotColor = urgDotColor(c);
+          // checar inadimplência (só gestora verá no financeiro, mas no card mostra tag)
+          const conc = concessoes.find(x=>x.contractId===c.id);
+          const temInadimplencia = conc && (() => {
+            const parc = gerarParcelas(conc);
+            return parc.some(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
+          })();
+          return `<div class="kb-card${isBaixa?' perca':isIndeferido?' indeferido-card':isEncerrado?' encerrado-card':''}" onclick="openPanel('${c.id}')">
+            <div class="kb-card-top">
+              <span class="kb-card-name">${c.nome||'—'}</span>
+              ${dotColor?`<span class="urgdot" style="background:${dotColor}" title="${daysUntil(c.dpp)} dias para o parto"></span>`:''}
+            </div>
+            <div class="kb-card-body">
+              ${tipoBadge(c.tipo)}
+              ${isBaixa?`<span class="badge badge-perca">⚑ ${c.motivoBaixa||'Baixa'}</span>`:''}
+              ${isIndeferido?`<span class="badge" style="background:#2D1A00;color:#FFAD5C">⚖ Recurso em andamento</span>`:''}
+              ${isEncerrado?`<span class="badge" style="background:#1A1A2E;color:#A0C4FF">✓ Encerrado</span>`:''}
+              ${alertaProt?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">⏱ ${diasProtocolado(c)}d sem resposta INSS</div>`:''}
+              ${temInadimplencia?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">💰 Honorário em atraso</div>`:''}
+              ${!isBaixa&&!isEncerrado?`<span>📅 DPP: ${c.dpp||'—'} · ${monthsToGo(c.dpp)}</span>`:''}
+              ${!isBaixa&&!isEncerrado&&!isIndeferido?`<div class="prog-bar">
+                <span>Docs ${done}/${total}</span>
+                <div class="prog-track"><div class="prog-fill" style="width:${pct}%;background:${pct===100?'#3A7D44':'#1D5FA8'}"></div></div>
+              </div>`:''}
+              ${pendImprescind?`<div class="doc-alert-tag">⚠ Doc imprescindível pendente</div>`:''}
+              ${c.guia_status?`<span class="badge badge-purple">Guia: ${c.guia_status}</span>`:''}
+              <span style="color:var(--text3);font-size:10px">👤 ${respName}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+};
+
+// ── PANEL ──
+window.openPanel = function(id){
+  const c = contracts.find(x=>x.id===id);
+  if(!c) return;
+  const list = docList(c.tipo);
+  const done = list.filter((_,i)=>c.docs&&c.docs[i]).length;
+  const respName = usersMap[c.resp]?.nome||c.resp||'—';
+  const editable = canEdit(c);
+  const panel = $('sidePanel');
+
+  panel.innerHTML = `
+    <div class="sp-header">
+      <div class="sp-avatar">${initials(c.nome)}</div>
+      <div><div class="sp-title">${c.nome||'—'}</div><div class="sp-sub">${tipoBadge(c.tipo)} · ${monthsToGo(c.dpp)}</div></div>
+      ${editable?`<button class="icon-btn" title="Editar" onclick="openEditModal('${id}')">✎</button>`:''}
+      <button class="icon-btn" onclick="closePanel()">✕</button>
+    </div>
+    <div class="sp-body">
+
+      <div class="sp-section">
+        <div class="sp-section-title">Dados da cliente</div>
+        <div class="info-grid">
+          <div class="info-item"><div class="info-key">CPF</div><div class="info-val">${c.cpf||'—'}</div></div>
+          <div class="info-item"><div class="info-key">Telefone</div><div class="info-val">${c.tel||'—'}${c.tel?` <a href="https://wa.me/55${c.tel.replace(/\D/g,'')}" target="_blank" style="font-size:10px;background:#25D366;color:#fff;border-radius:8px;padding:1px 6px;text-decoration:none;margin-left:4px">WA</a>`:''}</div></div>
+          <div class="info-item"><div class="info-key">Tel. recado</div><div class="info-val">${c.tel2||'—'}${c.tel2desc?` <span style="font-size:10px;color:var(--text3)">(${c.tel2desc})</span>`:''}</div></div>
+          <div class="info-item"><div class="info-key">Nasc. cliente</div><div class="info-val">${c.dtnasc||'—'}</div></div>
+          <div class="info-item"><div class="info-key">Senha gov.br</div><div class="info-val" style="font-family:'DM Mono',monospace">${c.senha||'—'}</div></div>
+          <div class="info-item"><div class="info-key">Fechamento</div><div class="info-val">${c.fechamento||'—'}</div></div>
+          <div class="info-item"><div class="info-key">DPP</div><div class="info-val">${c.dpp||'—'}</div></div>
+          <div class="info-item"><div class="info-key">Gestação</div><div class="info-val">${c.mesgest||'—'}º mês</div></div>
+          <div class="info-item"><div class="info-key">Tipo prev.</div><div class="info-val">${c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.'}</div></div>
+          <div class="info-item"><div class="info-key">Situação</div><div class="info-val">${c.subtipo?({graca:'Período de graça',agricultora:'Agricultora',outro:'Outra',nunca:'Nunca trabalhou',desempregada:'Desempregada',autonoma:'Autônoma/MEI','renda-extra':'Renda extra','somente-clt':'Só CLT'}[c.subtipo]||c.subtipo):'—'}</div></div>
+          <div class="info-item"><div class="info-key">Responsável</div><div class="info-val">${respName}</div></div>
+          <div class="info-item"><div class="info-key">Criado por</div><div class="info-val">${usersMap[c.createdBy]?.nome||'—'}</div></div>
+          <div class="info-item" style="grid-column:1/-1">
+            <div class="info-key">Data nasc. criança (preencher após parto)</div>
+            <div style="display:flex;gap:6px;align-items:center;margin-top:3px">
+              <input type="date" id="dataNascCriancaInput" value="${c.dataNascCrianca||''}" style="flex:1;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text)">
+              <button class="btn-sm" onclick="salvarDataNascCrianca('${id}')" style="white-space:nowrap;font-size:11px">Salvar</button>
+            </div>
+          </div>
+        </div>
+        ${c.tipo!=='qualidade'?`
+        <div class="info-grid" style="margin-top:8px">
+          <div class="info-item"><div class="info-key">Competência guia</div><div class="info-val">${c.guia_mes||'—'}</div></div>
+          <div class="info-item"><div class="info-key">Quem paga</div><div class="info-val">${c.paga==='escritorio'?'Escritório':'Cliente'}</div></div>
+          <div class="info-item"><div class="info-key">Valor guia</div><div class="info-val">${c.guia_val?'R$ '+c.guia_val:'—'}</div></div>
+          <div class="info-item"><div class="info-key">Status guia</div><div class="info-val">${c.guia_status||'Não gerada'}</div></div>
+        </div>`:''}
+        ${c.drive?`<div style="margin-top:8px"><a href="${c.drive}" target="_blank" style="font-size:12px;color:var(--blue)">📁 Abrir Google Drive</a></div>`:''}
+        ${c.dataProtocolo?`<div style="margin-top:6px;font-size:11px;color:var(--text2)">📅 Protocolado em: <strong>${c.dataProtocolo}</strong>${alertaProtocolo(c)?` <span style="color:#B83535;font-weight:600">· ${diasProtocolado(c)} dias sem resposta!</span>`:''}</div>`:''}
+        ${c.dataIndeferimento?`<div style="margin-top:4px;font-size:11px;color:#FFAD5C">⚖ Indeferido em: <strong>${c.dataIndeferimento}</strong> — encaminhar para recurso</div>`:''}
+        ${c.dataEncerramento?`<div style="margin-top:4px;font-size:11px;color:#A0C4FF">✓ Encerrado em: <strong>${c.dataEncerramento}</strong></div>`:''}
+        ${c.obs?`<div style="margin-top:8px;font-size:12px;color:var(--text2);background:var(--bg);padding:8px 10px;border-radius:8px;line-height:1.5">${c.obs}</div>`:''}
+      </div>
+
+      <hr class="divider">
+
+      <div class="sp-section">
+        <div class="sp-section-title">Checklist de documentos (${done}/${list.length})</div>
+        <div id="ckListEl">
+          ${list.map((doc,i)=>`
+            <div class="ck-item${c.docs&&c.docs[i]?' done':''}" ${editable?`onclick="toggleDoc('${id}',${i})"`:'style="cursor:default"'}>
+              <div class="ck-box${c.docs&&c.docs[i]?' checked':''}">${c.docs&&c.docs[i]?'✓':''}</div>
+              <span class="ck-label">${doc}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      ${editable?`
+      <hr class="divider">
+      <div class="sp-section">
+        <div class="sp-section-title">Mover etapa</div>
+        <div class="etapa-grid">
+          ${COLS.map(col=>`<button class="etapa-opt${c.etapa===col.id?' active':''}" onclick="moveEtapa('${id}','${col.id}')">${col.label}</button>`).join('')}
+        </div>
+        ${c.etapa==='indeferido'||c.etapa==='baixa'?`<div style="margin-top:8px">
+          <label style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em">${c.etapa==='indeferido'?'Motivo do indeferimento':'Motivo da baixa'}</label>
+          <select id="motivoBaixaSel" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text)" onchange="salvarMotivoBaixa('${id}')">
+            ${c.etapa==='indeferido'?`
+            <option value="">— selecione —</option>
+            <option value="Carência insuficiente" ${c.motivoBaixa==='Carência insuficiente'?'selected':''}>Carência insuficiente</option>
+            <option value="Qualidade de segurada perdida" ${c.motivoBaixa==='Qualidade de segurada perdida'?'selected':''}>Qualidade de segurada perdida</option>
+            <option value="Documentação incompleta" ${c.motivoBaixa==='Documentação incompleta'?'selected':''}>Documentação incompleta</option>
+            <option value="Outro motivo INSS" ${c.motivoBaixa==='Outro motivo INSS'?'selected':''}>Outro motivo INSS</option>
+            `:`
+            <option value="">— selecione —</option>
+            <option value="Guia não paga" ${c.motivoBaixa==='Guia não paga'?'selected':''}>Guia não paga</option>
+            <option value="Perda gestacional" ${c.motivoBaixa==='Perda gestacional'?'selected':''}>Perda gestacional</option>
+            <option value="Desistência da cliente" ${c.motivoBaixa==='Desistência da cliente'?'selected':''}>Desistência da cliente</option>
+            <option value="Documentação incompleta" ${c.motivoBaixa==='Documentação incompleta'?'selected':''}>Documentação incompleta</option>
+            <option value="Outro" ${c.motivoBaixa==='Outro'?'selected':''}>Outro</option>
+            `}
+          </select>
+        </div>`:''}
+      </div>
+      <hr class="divider">
+      <div class="sp-section">
+        <div class="sp-section-title">Observações</div>
+        <textarea class="obs-area" id="obsEdit" rows="3">${c.obs||''}</textarea>
+        <div class="btn-row" style="margin-top:8px">
+          ${isGestora()?`<button class="btn-sm btn-del" onclick="deleteContract('${id}')">Excluir permanentemente</button>`:''}
+          <button class="btn-save" onclick="saveObs('${id}')">Salvar</button>
+        </div>
+      </div>`:''}
+    </div>`;
+
+  $('panelOverlay').classList.add('open');
+};
+
+window.closePanel = function(){ $('panelOverlay').classList.remove('open'); };
+window.closePanelOverlay = function(e){ if(e.target===$('panelOverlay')) closePanel(); };
+
+window.salvarDataNascCrianca = async function(id){
+  const val=document.getElementById('dataNascCriancaInput')?.value;
+  if(!val){ toast('Informe a data de nascimento.'); return; }
+  await updateDoc(doc(db,'contracts',id),{dataNascCrianca:val});
+  toast('Data de nascimento da criança salva ✓');
+  openPanel(id);
+};
+
+window.salvarMotivoBaixa = async function(id){
+  const motivo = $('motivoBaixaSel')?.value;
+  if(!motivo) return;
+  await updateDoc(doc(db,'contracts',id),{motivoBaixa:motivo});
+  toast('Motivo de baixa salvo ✓');
+};
+
+window.toggleDoc = async function(id, i){
+  const c = contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
+  const docs = {...(c.docs||{})};
+  docs[i] = !docs[i];
+  await updateDoc(doc(db,'contracts',id),{docs});
+  toast(docs[i]?'Documento marcado ✓':'Documento desmarcado');
+  openPanel(id);
+};
+
+window.moveEtapa = async function(id, etapa){
+  const c=contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
+  const update={etapa};
+  const hoje=new Date().toISOString().split('T')[0];
+  if(etapa==='protocolado' && !c.dataProtocolo) update.dataProtocolo=hoje;
+  if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
+  if(etapa==='encerrado') update.dataEncerramento=hoje;
+  await updateDoc(doc(db,'contracts',id),update);
+  toast('Etapa atualizada');
+  openPanel(id);
+};
+
+window.saveObs = async function(id){
+  const c=contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
+  const obs=$('obsEdit').value;
+  await updateDoc(doc(db,'contracts',id),{obs});
+  toast('Observação salva');
+  openPanel(id);
+};
+
+window.deleteContract = async function(id){
+  if(!isGestora()){ toast('Apenas a gestora pode excluir contratos.'); return; }
+  const c=contracts.find(x=>x.id===id);
+  if(!confirm(`⚠ ATENÇÃO: Excluir o contrato de "${c?.nome}" permanentemente?\n\nEsta ação NÃO pode ser desfeita.`)) return;
+  closePanel();
+  await deleteDoc(doc(db,'contracts',id));
+  toast('Contrato excluído permanentemente');
+};
+
+// ── MODAL ──
+window.openNewModal = function(){
+  editingId=null;
+  $('modalTitle').textContent='Novo contrato';
+  ['f_nome','f_tel','f_tel2','f_tel2desc','f_cpf','f_senha','f_dpp','f_dtnasc','f_mesgest','f_fechamento','f_drive','f_obs','f_guia_mes','f_guia_val'].forEach(x=>{if($(x))$(x).value=''});
+  $('f_tipo').value='qualidade'; $('f_subtipo').value='';
+  $('f_tipo').value='qualidade';
+  $('f_guia_status').value='';
+  $('f_paga').value='escritorio';
+  $('f_resp').value=currentUser.uid;
+  $('f_fechamento').value=new Date().toISOString().split('T')[0];
+  $('cpf_alerta').style.display='none';
+  toggleGuiaFields();
+  $('modalOverlay').classList.add('open');
+};
+
+window.openEditModal = function(id){
+  const c=contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
+  editingId=id;
+  $('modalTitle').textContent='Editar contrato';
+  $('f_nome').value=c.nome||'';
+  $('f_tel').value=c.tel||'';
+  $('f_tel2').value=c.tel2||'';
+  $('f_tel2desc').value=c.tel2desc||'';
+  $('f_cpf').value=c.cpf||'';
+  $('f_dtnasc').value=c.dtnasc||'';
+  $('f_senha').value=c.senha||'';
+  $('f_dpp').value=c.dpp||'';
+  $('f_mesgest').value=c.mesgest||'';
+  $('f_tipo').value=c.tipo||'qualidade';
+  $('f_subtipo').value=c.subtipo||'';
+  $('f_resp').value=c.resp||currentUser.uid;
+  $('f_drive').value=c.drive||'';
+  $('f_obs').value=c.obs||'';
+  $('f_fechamento').value=c.fechamento||'';
+  $('f_guia_mes').value=c.guia_mes||'';
+  $('f_paga').value=c.paga||'escritorio';
+  $('f_guia_status').value=c.guia_status||'';
+  $('f_guia_val').value=c.guia_val||'';
+  $('cpf_alerta').style.display='none';
+  toggleGuiaFields();
+  $('modalOverlay').classList.add('open');
+};
+
+window.closeModal = function(){
+  // verificar se há dados preenchidos
+  const campos = ['f_nome','f_tel','f_cpf','f_obs'];
+  const temDados = campos.some(id=>$(id)&&$(id).value.trim());
+  if(temDados && !editingId){
+    if(!confirm('Há dados preenchidos que não foram salvos.\nDeseja sair mesmo assim?')) return;
+  }
+  $('modalOverlay').classList.remove('open');
+};
+window.closeModalOverlay = function(e){ if(e.target===$('modalOverlay')) closeModal(); };
+
+window.toggleGuiaFields = function(){
+  const tipo = $('f_tipo').value;
+  // guia só aparece para contrib-unica e clt-extra
+  $('guia_fields').style.display = tipo==='qualidade'?'none':'block';
+  // popular subtipo conforme tipo
+  const sub = $('f_subtipo');
+  const valAtual = sub.value;
+  const opcs = {
+    qualidade:[
+      ['','— selecione —'],
+      ['graca','Período de graça (trabalhou com CLT antes)'],
+      ['agricultora','Agricultora / Trabalhadora rural'],
+      ['outro','Outra situação'],
+    ],
+    'contrib-unica':[
+      ['','— selecione —'],
+      ['nunca','Nunca trabalhou antes'],
+      ['desempregada','Desempregada'],
+      ['autonoma','Autônoma / MEI'],
+    ],
+    'clt-extra':[
+      ['','— selecione —'],
+      ['renda-extra','Faz renda extra (autônoma / MEI)'],
+      ['somente-clt','Somente CLT (sem renda extra)'],
+    ],
+  };
+  sub.innerHTML = (opcs[tipo]||[['','— selecione —']]).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  if(valAtual) sub.value = valAtual;
+};
+
+window.saveContract = async function(){
+  const g=id=>$(id).value.trim();
+  if(!g('f_nome')){ alert('Informe o nome da cliente.'); return; }
+  // bloquear CPF duplicado
+  const cpfNovo = g('f_cpf').replace(/\D/g,'');
+  if(cpfNovo && !editingId){
+    const dup = contracts.find(c=>c.cpf&&c.cpf.replace(/\D/g,'')===cpfNovo);
+    if(dup){ alert(`⚠ CPF já cadastrado!\n\nCliente: ${dup.nome}\nEtapa: ${colLabel(dup.etapa)}\n\nVerifique antes de continuar.`); return; }
+  }
+  const data={
+    nome:g('f_nome'), tel:g('f_tel'), tel2:g('f_tel2'), tel2desc:g('f_tel2desc'), cpf:g('f_cpf'),
+    dtnasc:g('f_dtnasc'), senha:g('f_senha'),
+    dpp:g('f_dpp'), mesgest:g('f_mesgest'), tipo:g('f_tipo'), subtipo:g('f_subtipo')||'',
+    resp:g('f_resp'), drive:g('f_drive'), obs:g('f_obs'), fechamento:g('f_fechamento'),
+    guia_mes:g('f_guia_mes'), paga:g('f_paga'), guia_status:g('f_guia_status'), guia_val:g('f_guia_val'),
+  };
+  try{
+    if(editingId){
+      await updateDoc(doc(db,'contracts',editingId), data);
+      toast('Contrato atualizado ✓');
+    } else {
+      data.etapa='fechado'; data.docs={}; data.createdBy=currentUser.uid; data.createdAt=serverTimestamp();
+      await addDoc(collection(db,'contracts'), data);
+      toast('Contrato criado ✓');
+    }
+    closeModal();
+  } catch(e){ alert('Erro ao salvar: '+e.message); }
+};
+
+// ── DASHBOARD ──
+window.renderDashboard = function(){
+  const data = visibleContracts();
+  const ativos = data.filter(c=>!['baixa','encerrado'].includes(c.etapa));
+  const urgent30 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)<=30);
+  const urgent90 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)>30&&daysUntil(c.dpp)<=90);
+  const nasc60 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=60);
+  const guiaPend = ativos.filter(c=>c.tipo!=='qualidade'&&!c.guia_status&&!['concedido','protocolado','indeferido'].includes(c.etapa));
+  const conc = data.filter(c=>c.etapa==='concedido');
+  const baixas = data.filter(c=>c.etapa==='baixa');
+  const indeferidos = data.filter(c=>c.etapa==='indeferido');
+  const encerrados = data.filter(c=>c.etapa==='encerrado');
+  const pendDocs = ativos.filter(c=>hasPendenciaImprescindivel(c)&&!['concedido','protocolado','indeferido','encerrado'].includes(c.etapa));
+  const protSemResposta = ativos.filter(c=>alertaProtocolo(c));
+  // inadimplentes (honorário atrasado > 7 dias)
+  const inadimplentes = concessoes.filter(c=>{
+    const parc=gerarParcelas(c);
+    return parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+  });
+
+  // guias escritório — definido aqui para usar nas métricas
+  const guiasEscritorio = ativos.filter(c=>
+    c.paga==='escritorio' && c.tipo!=='qualidade' &&
+    (!c.guia_status||c.guia_status==='') &&
+    !['concedido','protocolado','indeferido'].includes(c.etapa)
+  ).map(c=>({...c, diasParto:daysUntil(c.dpp), urgente: daysUntil(c.dpp)<=45}))
+   .sort((a,b)=>a.diasParto-b.diasParto);
+
+  $('metricsRow').innerHTML=`
+    <div class="metric-card metric-link" onclick="filtrarLista('')" title="Ver todos os contratos ativos"><div class="metric-val">${ativos.length}</div><div class="metric-lbl">Contratos ativos</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('',30)" title="Ver partos em 30 dias"><div class="metric-val" style="color:var(--red)">${urgent30.length}</div><div class="metric-lbl">Partos em 30 dias</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('',90)" title="Ver partos em 90 dias"><div class="metric-val" style="color:#D4900A">${urgent90.length}</div><div class="metric-lbl">Partos em 90 dias</div></div>
+    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_pendentes')" title="Ver clientes com guia pendente"><div class="metric-val" style="color:var(--amber)">${guiaPend.length}</div><div class="metric-lbl">Guias pendentes</div></div>
+    <div class="metric-card metric-link" onclick="filtrarListaCustom('guias_escritorio')" title="Ver guias que o escritório pagará"><div class="metric-val" style="color:#B83535">${guiasEscritorio.filter(c=>c.urgente).length}</div><div class="metric-lbl">Guias escritório urgentes</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('concedido')" title="Ver concedidos"><div class="metric-val" style="color:var(--green)">${conc.length}</div><div class="metric-lbl">Concedidos</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('indeferido')" title="Ver indeferidos"><div class="metric-val" style="color:#FFAD5C">${indeferidos.length}</div><div class="metric-lbl">Indeferidos</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('encerrado')" title="Ver encerrados"><div class="metric-val" style="color:#A0C4FF">${encerrados.length}</div><div class="metric-lbl">Encerrados</div></div>
+    <div class="metric-card metric-link" onclick="filtrarLista('baixa')" title="Ver baixas e perdas"><div class="metric-val" style="color:var(--red)">${baixas.length}</div><div class="metric-lbl">Baixas / Perdas</div></div>
+    <div class="metric-card metric-link" onclick="scrollDashCol('alertsCard')" title="Ver docs pendentes"><div class="metric-val" style="color:#856404">${pendDocs.length}</div><div class="metric-lbl">Docs pendentes</div></div>
+  `;
+
+  const alertas=[
+    ...ativos.filter(c=>c.etapa==='nasceu').map(c=>({col:'#B83535',name:c.nome,sub:'Criança nasceu — protocolar urgente!',id:c.id})),
+    ...protSemResposta.map(c=>({col:'#B83535',name:c.nome,sub:`⏱ ${diasProtocolado(c)} dias sem resposta INSS — diligenciar!`,id:c.id})),
+    ...inadimplentes.map(c=>{
+      const cont=contracts.find(x=>x.id===c.contractId)||{};
+      const parc=gerarParcelas(c);
+      const atrasada=parc.find(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+      return {col:'#B83535',name:cont.nome||c.nomeCliente,sub:`💰 Honorário parc. ${atrasada?.num||'?'} atraso desde ${atrasada?.dtCliente||'—'} — cobrar!`,id:cont.id};
+    }),
+    ...ativos.filter(c=>daysUntil(c.dpp)<=14&&c.etapa!=='nasceu'&&c.etapa!=='protocolado')
+      .map(c=>({col:'#B83535',name:c.nome,sub:`Parto em ${daysUntil(c.dpp)} dias — verificar situação`,id:c.id})),
+    ...ativos.filter(c=>c.guia_status==='enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
+    ...guiaPend.filter(c=>c.etapa==='fechado').map(c=>({col:'#A0612A',name:c.nome,sub:'Contrato fechado — guia não gerada',id:c.id})),
+    ...pendDocs.map(c=>({col:'#856404',name:c.nome,sub:'⚠ Documento imprescindível pendente',id:c.id})),
+    ...indeferidos.map(c=>({col:'#FFAD5C',name:c.nome,sub:`⚖ Indeferido em ${c.dataIndeferimento||'—'} — passar para operacional`,id:c.id})),
+  ];
+  $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:${a.col}"></div>
+      <div>
+        <div class="alert-name" style="${a.id?'cursor:pointer;text-decoration:underline;text-underline-offset:2px':''}" ${a.id?`onclick="openPanel('${a.id}')"`:''}>${a.name}</div>
+        <div class="alert-sub">${a.sub}</div>
+      </div>
+    </div>`).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>';
+
+  const nb=nasc60.sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
+  $('birthCard').innerHTML = nb.length ? nb.map(c=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:var(--accent)"></div>
+      <div>
+        <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${c.id}')">${c.nome}</div>
+        <div class="alert-sub">DPP: ${c.dpp} · ${daysUntil(c.dpp)} dias · ${colLabel(c.etapa)}</div>
+      </div>
+    </div>`).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum parto nos próximos 60 dias.</div>';
+
+  // guias escritório card
+  if($('dashGuiasCard')){
+    $('dashGuiasCard').innerHTML = guiasEscritorio.length ? guiasEscritorio.map(c=>`
+      <div class="alert-item">
+        <div class="alert-dot" style="background:${c.urgente?'#B83535':'#A0612A'}"></div>
+        <div>
+          <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${c.id}')">${c.nome} ${c.urgente?'<span class="badge badge-red" style="font-size:9px">URGENTE</span>':''}</div>
+          <div class="alert-sub">Parto em ${c.diasParto} dias · ${c.dpp}${c.guia_mes?' · Comp: '+c.guia_mes:''}${c.guia_val?' · R$ '+c.guia_val:''}</div>
+        </div>
+      </div>`).join('') :
+      '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma guia pendente. ✓</div>';
+  }
+
+  // aniversários próximos 30 dias (cliente e criança)
+  function diasParaAniv(dateStr){
+    if(!dateStr) return 9999;
+    const hoje=new Date(); const d=new Date(dateStr+'T00:00:00');
+    let aniv=new Date(hoje.getFullYear(),d.getMonth(),d.getDate());
+    if(aniv<hoje) aniv=new Date(hoje.getFullYear()+1,d.getMonth(),d.getDate());
+    return Math.round((aniv-hoje)/864e5);
+  }
+  const anivs=[];
+  visibleContracts().forEach(c=>{
+    if(c.dtnasc){ const d=diasParaAniv(c.dtnasc); if(d<=30) anivs.push({nome:c.nome,tipo:'🎂 Cliente',data:c.dtnasc,dias:d,tel:c.tel,id:c.id}); }
+    if(c.dataNascCrianca){ const d=diasParaAniv(c.dataNascCrianca); if(d<=30) anivs.push({nome:c.nome,tipo:'👶 Criança',data:c.dataNascCrianca,dias:d,tel:c.tel,id:c.id}); }
+  });
+  anivs.sort((a,b)=>a.dias-b.dias);
+  if($('dashAnivCard')){
+    $('dashAnivCard').innerHTML=anivs.length?anivs.map(a=>{
+      const wLink=a.tel?`https://wa.me/55${a.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${a.nome.split(' ')[0]}! 🎉 Muitas felicidades neste dia especial! Com carinho, equipe MaternidadePrev. 💕`)}`:'';
+      return `<div class="alert-item">
+        <div class="alert-dot" style="background:#C94F6D"></div>
+        <div style="flex:1">
+          <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="openPanel('${a.id}')">${a.nome} <span class="badge badge-accent">${a.tipo}</span></div>
+          <div class="alert-sub">${a.dias===0?'🎂 Hoje!':a.dias===1?'Amanhã':`Em ${a.dias} dias`} · ${a.data}${a.tel?` · ${a.tel}`:''}</div>
+        </div>
+        ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:3px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none;flex-shrink:0">📱 Parabéns</a>`:''}
+      </div>`;
+    }).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum aniversário nos próximos 30 dias.</div>';
+  }
+  if($('dashBaixasCard')){
+    const grupos = {};
+    baixas.forEach(c=>{const m=c.motivoBaixa||'Não informado';grupos[m]=(grupos[m]||0)+1;});
+    $('dashBaixasCard').innerHTML = baixas.length ? Object.entries(grupos).map(([m,n])=>`
+      <div class="alert-item">
+        <div class="alert-dot" style="background:#B83535"></div>
+        <div><div class="alert-name">${m}</div><div class="alert-sub">${n} contrato(s)</div></div>
+      </div>`).join('') : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhuma baixa registrada. ✓</div>';
+  }
+};
+
+function colLabel(id){ return (COLS.find(c=>c.id===id)||{label:id}).label; }
+
+// Navega para aba Contratos com filtro aplicado
+window.filtrarLista = function(etapa, diasParto){
+  // ativar aba lista
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-lista').classList.add('active');
+  document.querySelectorAll('.tab-btn')[2].classList.add('active');
+  // aplicar filtro
+  if(etapa !== undefined){
+    const sel = $('listEtapa');
+    // popular opções se ainda não foram
+    if(sel && sel.options.length<=1) COLS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.label;sel.appendChild(o);});
+    if(sel) sel.value = etapa||'';
+  }
+  $('listSearch').value='';
+  $('listTipo').value='';
+  $('listResp').value='';
+  // se filtro por dias de parto, usar campo de busca customizado
+  window._filtroDiasParto = diasParto||null;
+  renderList();
+};
+
+// Navega para aba Contratos com filtro customizado
+window.filtrarListaCustom = function(tipo){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-lista').classList.add('active');
+  document.querySelectorAll('.tab-btn')[2].classList.add('active');
+  const sel=$('listEtapa');
+  if(sel&&sel.options.length<=1) COLS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.label;sel.appendChild(o);});
+  sel.value=''; $('listSearch').value=''; $('listTipo').value=''; $('listResp').value='';
+  window._filtroDiasParto=null;
+  window._filtroCustom=tipo;
+  renderList();
+};
+
+// Scroll suave para coluna do dashboard
+window.scrollDashCol = function(cardId){
+  const el = $(cardId);
+  if(el) el.closest('.dash-col')?.scrollIntoView({behavior:'smooth', block:'nearest'});
+};
+
+function updateAlertBadge(){
+  const data=visibleContracts().filter(c=>!['baixa','encerrado'].includes(c.etapa));
+  const n1=data.filter(c=>(c.etapa==='nasceu')||(daysUntil(c.dpp)<=14&&c.etapa!=='nasceu'&&c.etapa!=='protocolado'&&c.etapa!=='concedido')).length;
+  const n2=data.filter(c=>alertaProtocolo(c)).length;
+  const n3=concessoes.filter(c=>{const p=gerarParcelas(c);return p.some(x=>!x.pago&&daysUntilDate(x.dtCliente)<-7);}).length;
+  const n=n1+n2+n3;
+  $('alertBadgeWrap').style.display=n>0?'flex':'none';
+  $('alertBadgeNum').textContent=n;
+}
+
+// ── LIST ──
+window.renderList = function(){
+  // limpar filtro especial se usuário interagiu manualmente
+  if(document.activeElement && ['listSearch','listEtapa','listTipo','listResp'].includes(document.activeElement.id)){
+    window._filtroDiasParto = null;
+    window._filtroCustom = null;
+  }
+  const sel=$('listEtapa');
+  if(sel&&sel.options.length<=1) COLS.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.label;sel.appendChild(o);});
+  const search=($('listSearch')?.value||'').toLowerCase();
+  const etF=$('listEtapa')?.value||'';
+  const tpF=$('listTipo')?.value||'';
+  const rsF=$('listResp')?.value||'';
+  let data=visibleContracts().filter(c=>{
+    if(search&&!c.nome?.toLowerCase().includes(search)) return false;
+    if(etF&&c.etapa!==etF) return false;
+    if(tpF&&c.tipo!==tpF) return false;
+    if(rsF&&c.resp!==rsF) return false;
+    if(window._filtroDiasParto){
+      const d=daysUntil(c.dpp);
+      if(window._filtroDiasParto===30 && !(d<=30 && !['concedido','protocolado','indeferido'].includes(c.etapa))) return false;
+      if(window._filtroDiasParto===90 && !(d>30 && d<=90 && !['concedido','protocolado','indeferido'].includes(c.etapa))) return false;
+    }
+    if(window._filtroCustom){
+      if(window._filtroCustom==='guias_pendentes'){
+        // guia pendente: não qualidade, sem status de guia, não encerrado/baixa/concedido
+        if(c.tipo==='qualidade') return false;
+        if(c.guia_status) return false;
+        if(['concedido','protocolado','indeferido','encerrado','baixa'].includes(c.etapa)) return false;
+      }
+      if(window._filtroCustom==='guias_escritorio'){
+        // escritório paga guia, urgente (parto em 45 dias), guia não paga
+        if(c.paga!=='escritorio') return false;
+        if(c.tipo==='qualidade') return false;
+        if(c.guia_status) return false;
+        if(['concedido','protocolado','indeferido','encerrado','baixa'].includes(c.etapa)) return false;
+        if(daysUntil(c.dpp)>45) return false;
+      }
+    }
+    return true;
+  });
+  $('listBody').innerHTML=data.map(c=>{
+    const docs=docList(c.tipo); const done=docs.filter((_,i)=>c.docs&&c.docs[i]).length;
+    const pct=Math.round(done/docs.length*100);
+    return `<tr onclick="openPanel('${c.id}')">
+      <td style="font-weight:500">${c.nome||'—'}</td>
+      <td>${colLabel(c.etapa)}</td>
+      <td>${tipoBadge(c.tipo)}</td>
+      <td>${c.dpp||'—'}</td>
+      <td>${(() => { const dc=urgDotColor(c); return dc?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dc};margin-right:4px;vertical-align:middle"></span>`:''})()}${monthsToGo(c.dpp)}</td>
+      <td>${done}/${docs.length} <span style="display:inline-block;width:28px;height:4px;background:var(--border);border-radius:2px;vertical-align:middle"><span style="display:block;height:4px;width:${pct}%;background:${pct===100?'#3A7D44':'#1D5FA8'};border-radius:2px"></span></span></td>
+      <td>${c.guia_status?`<span class="badge badge-purple">${c.guia_status}</span>`:'<span class="badge badge-gray">—</span>'}</td>
+      <td>${usersMap[c.resp]?.nome?.split(' ')[0]||'—'}</td>
+    </tr>`;
+  }).join('');
+};
+
+// ── RELATÓRIOS ──
+window.renderRelatorios = function(){
+  const nasc90 = visibleContracts().filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido'&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=90)
+    .sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
+  const el=$('relNascCard');
+  if(el) el.innerHTML = nasc90.length ? nasc90.map(c=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:${urgDotColor(c)}"></div>
+      <div><div class="alert-name">${c.nome}</div>
+        <div class="alert-sub">DPP: ${c.dpp} · ${daysUntil(c.dpp)} dias · ${tipoBadge(c.tipo)} · ${colLabel(c.etapa)} · ${usersMap[c.resp]?.nome||'—'}</div>
+      </div>
+    </div>`).join('') : '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum parto previsto nos próximos 90 dias.</div>';
+};
+
+// ── EXPORTAR EXCEL ──
+window.exportExcel = function(){
+  const data = visibleContracts().filter(c=>c.etapa!=='baixa');
+  const etF=$('listEtapa')?.value||'';
+  const tpF=$('listTipo')?.value||'';
+  const rsF=$('listResp')?.value||'';
+  const search=($('listSearch')?.value||'').toLowerCase();
+  let rows = data.filter(c=>{
+    if(search&&!c.nome?.toLowerCase().includes(search)) return false;
+    if(etF&&c.etapa!==etF) return false;
+    if(tpF&&c.tipo!==tpF) return false;
+    if(rsF&&c.resp!==rsF) return false;
+    return true;
+  });
+  const header = ['Nome','Telefone','CPF','DPP','Mês gestação','Tipo','Etapa','Guia status','Valor guia','Responsável','Fechamento','Observações'];
+  const csvRows = [header, ...rows.map(c=>[
+    c.nome||'',c.tel||'',c.cpf||'',c.dpp||'',c.mesgest||'',
+    c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.',
+    colLabel(c.etapa),c.guia_status||'',c.guia_val||'',
+    usersMap[c.resp]?.nome||'',c.fechamento||'',c.obs||''
+  ])];
+  const csv = csvRows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`contratos_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); toast('Excel (CSV) gerado ✓');
+};
+
+// ── GERAR HTML PARA PDF ──
+function gerarHTMLPDF(titulo, subtitulo, colunas, linhas, rodape){
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>${titulo}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11px;color:#1A1814;padding:24px}
+    h1{font-size:16px;font-weight:700;color:#C94F6D;margin-bottom:4px}
+    .sub{font-size:11px;color:#6B6560;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    th{background:#F0EDE6;padding:7px 8px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;border-bottom:2px solid #E2DDD5}
+    td{padding:6px 8px;border-bottom:1px solid #F0EDE6;vertical-align:top}
+    tr:nth-child(even) td{background:#FAFAF8}
+    .footer{font-size:10px;color:#A09A93;margin-top:20px;border-top:1px solid #E2DDD5;padding-top:8px}
+    .badge-red{color:#B83535;font-weight:600} .badge-amber{color:#A0612A;font-weight:600} .badge-green{color:#3A7D44;font-weight:600}
+    @media print{body{padding:10px}}
+  </style></head><body>
+  <h1>♥ MaternidadePrev — ${titulo}</h1>
+  <div class="sub">${subtitulo} · Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+  <table><thead><tr>${colunas.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+  <tbody>${linhas}</tbody></table>
+  <div class="footer">${rodape}</div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+}
+
+function abrirPDF(html){
+  const w=window.open('','_blank'); w.document.write(html); w.document.close();
+}
+
+window.exportListaPDF = function(){
+  const data = visibleContracts().filter(c=>c.etapa!=='baixa');
+  const linhas = data.map(c=>{
+    const days=daysUntil(c.dpp);
+    const cls=days<=30?'badge-red':days<=60?'badge-amber':'badge-green';
+    return `<tr><td><strong>${c.nome||'—'}</strong><br><small>${c.tel||''}</small></td>
+      <td>${colLabel(c.etapa)}</td>
+      <td>${c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.'}</td>
+      <td class="${cls}">${c.dpp||'—'}<br>${monthsToGo(c.dpp)}</td>
+      <td>${c.guia_status||'—'}</td>
+      <td>${usersMap[c.resp]?.nome?.split(' ')[0]||'—'}</td></tr>`;
+  }).join('');
+  abrirPDF(gerarHTMLPDF('Listagem de Contratos',`${data.length} contratos`,
+    ['Cliente','Etapa','Tipo','DPP / Prazo','Guia','Resp.'],linhas,
+    `Total: ${data.length} contratos ativos`));
+};
+
+window.exportAlertasPDF = function(){
+  const data = visibleContracts().filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido');
+  const alertas=[
+    ...data.filter(c=>c.etapa==='nasceu').map(c=>({urgencia:'🔴 URGENTE',nome:c.nome,alerta:'Criança nasceu — protocolar imediatamente',dpp:c.dpp})),
+    ...data.filter(c=>{const d=daysUntil(c.dpp);return d<=30&&c.etapa!=='nasceu';}).map(c=>({urgencia:'🔴 30 dias',nome:c.nome,alerta:`Parto em ${daysUntil(c.dpp)} dias`,dpp:c.dpp})),
+    ...data.filter(c=>{const d=daysUntil(c.dpp);return d>30&&d<=60;}).map(c=>({urgencia:'🟠 60 dias',nome:c.nome,alerta:`Parto em ${daysUntil(c.dpp)} dias`,dpp:c.dpp})),
+    ...data.filter(c=>{const d=daysUntil(c.dpp);return d>60&&d<=90;}).map(c=>({urgencia:'🟡 90 dias',nome:c.nome,alerta:`Parto em ${daysUntil(c.dpp)} dias`,dpp:c.dpp})),
+    ...data.filter(c=>c.tipo!=='qualidade'&&!c.guia_status).map(c=>({urgencia:'⚠ Guia',nome:c.nome,alerta:'Guia não gerada',dpp:c.dpp})),
+    ...data.filter(c=>hasPendenciaImprescindivel(c)).map(c=>({urgencia:'⚠ Docs',nome:c.nome,alerta:'Documento imprescindível pendente',dpp:c.dpp})),
+  ];
+  const linhas=alertas.map(a=>`<tr><td>${a.urgencia}</td><td><strong>${a.nome}</strong></td><td>${a.alerta}</td><td>${a.dpp||'—'}</td></tr>`).join('');
+  abrirPDF(gerarHTMLPDF('Alertas do Mês',`${alertas.length} alertas identificados`,
+    ['Urgência','Cliente','Alerta','DPP'],linhas,
+    `Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}`));
+};
+
+window.exportNascimentosPDF = function(){
+  const data = visibleContracts().filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido')
+    .filter(c=>{const d=daysUntil(c.dpp);return d>=0&&d<=90;})
+    .sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
+  const linhas=data.map(c=>`<tr><td><strong>${c.nome}</strong></td><td>${c.dpp||'—'}</td>
+    <td>${daysUntil(c.dpp)} dias</td>
+    <td>${c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.'}</td>
+    <td>${colLabel(c.etapa)}</td><td>${usersMap[c.resp]?.nome||'—'}</td></tr>`).join('');
+  abrirPDF(gerarHTMLPDF('Nascimentos Previstos — 90 dias',`${data.length} clientes`,
+    ['Cliente','DPP','Dias','Tipo','Etapa','Responsável'],linhas,
+    `Nascimentos nos próximos 90 dias`));
+};
+
+window.exportResumoPDF = function(){
+  const all = visibleContracts();
+  const ativos=all.filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido').length;
+  const baixas=all.filter(c=>c.etapa==='baixa').length;
+  const conc=all.filter(c=>c.etapa==='concedido').length;
+  const porResp={};
+  all.forEach(c=>{const n=usersMap[c.resp]?.nome||'—';porResp[n]=(porResp[n]||{ativos:0,conc:0,baixas:0});
+    if(c.etapa==='concedido') porResp[n].conc++;
+    else if(c.etapa==='baixa') porResp[n].baixas++;
+    else porResp[n].ativos++;
+  });
+  const linhas=Object.entries(porResp).map(([n,v])=>`<tr><td>${n}</td><td>${v.ativos}</td><td>${v.conc}</td><td>${v.baixas}</td></tr>`).join('');
+  const resumo=`<p><strong>Total de contratos:</strong> ${all.length} | <strong>Ativos:</strong> ${ativos} | <strong>Concedidos:</strong> ${conc} | <strong>Baixas:</strong> ${baixas}</p>`;
+  abrirPDF(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Resumo Gerencial</title>
+  <style>body{font-family:Arial,sans-serif;font-size:11px;padding:24px}h1{color:#C94F6D;font-size:16px}
+  table{width:100%;border-collapse:collapse;margin:16px 0}th{background:#F0EDE6;padding:7px;text-align:left;font-size:10px;text-transform:uppercase}
+  td{padding:6px 8px;border-bottom:1px solid #F0EDE6}p{margin:8px 0;font-size:12px}
+  @media print{body{padding:10px}}</style></head><body>
+  <h1>♥ MaternidadePrev — Resumo Gerencial</h1>
+  <p style="color:#6B6560">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+  ${resumo}
+  <table><thead><tr><th>Responsável</th><th>Ativos</th><th>Concedidos</th><th>Baixas</th></tr></thead>
+  <tbody>${linhas}</tbody></table>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+};
+
+
+window.renderAdminUsers = function(){
+  if(!isGestora()) return;
+  const html = Object.entries(usersMap).map(([uid,u])=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:var(--accent)"></div>
+      <div style="flex:1">
+        <div class="alert-name">${u.nome} <span class="badge badge-gray">${u.role}</span></div>
+        <div class="alert-sub">${u.email||uid}</div>
+      </div>
+    </div>`).join('');
+  $('userListCard').innerHTML = html||'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum usuário cadastrado ainda.</div>';
+};
+
+window.createUser = async function(){
+  if(!isGestora()){ alert('Sem permissão.'); return; }
+  const nome=$('nu_nome').value.trim();
+  const email=$('nu_email').value.trim();
+  const senha=$('nu_senha').value;
+  const role=$('nu_role').value;
+  if(!nome||!email||!senha){ alert('Preencha todos os campos.'); return; }
+  if(senha.length<6){ alert('A senha deve ter no mínimo 6 caracteres.'); return; }
+  try{
+    const cred = await createUserWithEmailAndPassword(auth, email, senha);
+    await setDoc(doc(db,'users',cred.user.uid),{nome,email,role});
+    toast('Usuário criado com sucesso ✓');
+    ['nu_nome','nu_email','nu_senha'].forEach(x=>$(x).value='');
+    await loadUsers();
+    renderAdminUsers();
+  } catch(e){
+    alert('Erro: '+(e.code==='auth/email-already-in-use'?'Este e-mail já está cadastrado.':e.message));
+  }
+};
+
+// ══════════════════════════════════════
+// MÓDULO FINANCEIRO (gestora only)
+// ══════════════════════════════════════
+let concessoes = [];
+let unsubConcessoes = null;
+let editingConcessaoId = null;
+
+function subscribeConcessoes(){
+  if(!isGestora()) return;
+  const q = query(collection(db,'concessoes'), orderBy('createdAt','desc'));
+  unsubConcessoes = onSnapshot(q, snap=>{
+    concessoes=[];
+    snap.forEach(d=>concessoes.push({id:d.id,...d.data()}));
+    if($('view-financeiro')?.classList.contains('active')) renderFinanceiro();
+  });
+}
+
+window.renderFinanceiro = function(){
+  if(!isGestora()) return;
+  const hoje=new Date();
+  // filtro meses
+  const meses=new Set();
+  concessoes.forEach(c=>{gerarParcelas(c).forEach(p=>{ if(p.dtCliente&&p.dtCliente!=='—') meses.add(p.dtCliente.slice(0,7)); });});
+  const selMes=$('finMesFiltro');
+  const prevVal=selMes.value;
+  const mesAtual=hoje.toISOString().slice(0,7);
+  selMes.innerHTML='<option value="">Todos os meses</option>'+[...meses].sort().map(m=>`<option value="${m}" ${m===mesAtual&&!prevVal?'selected':''}>${m}</option>`).join('');
+  if(prevVal) selMes.value=prevVal;
+  const mesFiltro=selMes.value;
+
+  let totalHon=0,totalReceb=0,totalAberto=0,totalBenefLiq=0;
+  let proxReceb=[],honAberto=[],inadimplentes=[];
+
+  concessoes.forEach(c=>{
+    const parc=gerarParcelas(c);
+    const cont=contracts.find(x=>x.id===c.contractId)||{};
+    let temInad=false;
+    parc.forEach(p=>{
+      totalHon+=p.honorario; totalBenefLiq+=p.valorBenef;
+      if(p.pago){ totalReceb+=p.honorario; }
+      else {
+        totalAberto+=p.honorario;
+        const days=daysUntilDate(p.dtCliente);
+        const item={nome:cont.nome||c.nomeCliente,tel:cont.tel||'',parc:p.num,total:parc.length,dt:p.dtCliente,hon:p.honorario,days,cid:c.id,idx:p.num-1,contractId:c.contractId};
+        honAberto.push(item);
+        if(days<=60) proxReceb.push(item);
+        if(days<-7) temInad=true;
+      }
+    });
+    if(temInad){
+      const parcAtrasadas=parc.filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+      const totalAtrasado=parcAtrasadas.reduce((s,p)=>s+p.honorario,0);
+      inadimplentes.push({nome:cont.nome||c.nomeCliente,tel:cont.tel||'',contractId:c.contractId,
+        parcAtrasadas:parcAtrasadas.length,totalAtrasado,primeiraDt:parcAtrasadas[0]?.dtCliente});
+    }
+  });
+  proxReceb.sort((a,b)=>a.days-b.days);
+  honAberto.sort((a,b)=>a.days-b.days);
+
+  const ticketMedio = concessoes.length>0 ? totalHon/concessoes.length : 0;
+  const taxaInad = concessoes.length>0 ? (inadimplentes.length/concessoes.length*100).toFixed(1) : '0.0';
+  const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
+
+  $('finMetrics').innerHTML=`
+    <div class="metric-card"><div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. total esperado</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAberto)}</div><div class="metric-lbl">Honor. em aberto</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
+    <div class="metric-card" style="cursor:pointer" onclick="document.getElementById('finInadCard').scrollIntoView({behavior:'smooth'})">
+      <div class="metric-val" style="color:var(--red)">${inadimplentes.length}</div>
+      <div class="metric-lbl" style="margin-bottom:4px">Inadimplentes</div>
+      <div style="font-size:18px;font-weight:600;color:${corTaxa}">${taxaInad}%</div>
+      <div style="font-size:10px;color:var(--text2)">taxa inadimplência</div>
+    </div>
+  `;
+
+  const idsInad = new Set(inadimplentes.map(i=>i.contractId));
+  const proxNormais = proxReceb.filter(p=>!idsInad.has(p.contractId));
+  const proxInad    = proxReceb.filter(p=>idsInad.has(p.contractId));
+  let proxHTML = '';
+  if(proxInad.length){
+    proxHTML += proxInad.map(p=>{
+      const wLink=p.tel?`https://wa.me/55${p.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${p.nome.split(' ')[0]}! Passando para lembrar que o honorário referente ao seu benefício (parcela ${p.parc}/${p.total}) está em aberto. Qualquer dúvida estou à disposição. 😊`)}`:'';
+      return `<div class="alert-item" style="background:#FFF5F5;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #F7C1C1">
+        <div class="alert-dot" style="background:#B83535"></div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</span>
+            <span class="badge badge-atrasado">⚠ INADIMPLENTE · ${Math.abs(p.days)}d atraso</span>
+          </div>
+          <div class="alert-sub">Parcela ${p.parc}/${p.total} · Prevista ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?` · <span style="font-family:monospace">${p.tel}</span>`:''}
+            ${wLink?`<a href="${wLink}" target="_blank" style="margin-left:6px;display:inline-flex;align-items:center;gap:3px;background:#25D366;color:#fff;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`:''}
+          </div>
+        </div>
+        <button class="btn-sm" style="font-size:11px;white-space:nowrap;flex-shrink:0;border-color:#F7C1C1;color:var(--red)" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
+      </div>`;
+    }).join('');
+  }
+  if(proxNormais.length){
+    proxHTML += proxNormais.map(p=>{
+      const cls=p.days<=7?'badge-red':p.days<=30?'badge-vence':'badge-gray';
+      const label=p.days===0?'Hoje':p.days<=7?`${p.days}d`:p.dt;
+      return `<div class="alert-item">
+        <div class="alert-dot" style="background:${p.days<=7?'#B83535':p.days<=30?'#A0612A':'#3A7D44'}"></div>
+        <div style="flex:1">
+          <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge ${cls}">${label}</span></div>
+          <div class="alert-sub">Parcela ${p.parc}/${p.total} · Cliente recebe em ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+        </div>
+        <button class="btn-sm" style="font-size:11px;white-space:nowrap;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
+      </div>`;
+    }).join('');
+  }
+  $('finProxCard').innerHTML=proxHTML||'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum recebimento previsto nos próximos 60 dias.</div>';
+
+  const abertoFilt=mesFiltro?honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)):honAberto;
+  $('finAbertoCard').innerHTML=abertoFilt.length?abertoFilt.map(p=>`
+    <div class="alert-item">
+      <div class="alert-dot" style="background:${p.days<0?'#B83535':'#A0612A'}"></div>
+      <div style="flex:1">
+        <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</div>
+        <div class="alert-sub"><span class="badge ${p.days<0?'badge-atrasado':'badge-vence'}">${p.days<0?Math.abs(p.days)+'d atrasado':p.dt}</span> · Parcela ${p.parc}/${p.total} · Honorário: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+      </div>
+    </div>`).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário em aberto. ✓</div>';
+
+  // card inadimplentes agrupados por cliente
+  const inadCard=$('finInadCard');
+  if(inadCard) inadCard.innerHTML=inadimplentes.length?inadimplentes.map(i=>{
+    const wLink=i.tel?`https://wa.me/55${i.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}`:'';
+    const conc=concessoes.find(x=>x.contractId===i.contractId);
+    const parcAtras=conc?gerarParcelas(conc).filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7):[];
+    const parcDetalhes=parcAtras.map(p=>`<span style="font-size:11px;background:#FDECEC;border-radius:6px;padding:2px 7px;margin-right:4px;margin-top:4px;display:inline-block">Parcela ${p.num} · ${p.dtCliente} · ${fmt(p.honorario)}</span>`).join('');
+    return `<div style="background:#FFF5F5;border:1px solid #F7C1C1;border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-weight:600;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${i.contractId}')">${i.nome}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.parcAtrasadas} parcela(s) · Total: <strong style="color:#B83535">${fmt(i.totalAtrasado)}</strong> · Em atraso desde ${i.primeiraDt||'—'}</div>
+          ${i.tel?`<div style="font-size:11px;font-family:monospace;color:var(--text2);margin-top:2px">${i.tel}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;text-decoration:none">📱 Cobrar via WhatsApp</a>`:''}
+          <button class="btn-sm" onclick="abrirClienteDoFinanceiro('${i.contractId}')" style="font-size:11px">Ver cliente</button>
+        </div>
+      </div>
+      <div style="margin-top:8px">${parcDetalhes}</div>
+    </div>`;
+  }).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum contrato inadimplente. ✓</div>';
+
+  $('finTableBody').innerHTML=concessoes.map(c=>{
+    const parc=gerarParcelas(c);
+    const cont=contracts.find(x=>x.id===c.contractId)||{};
+    const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
+    const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
+    const proxNaoPago=parc.find(p=>!p.pago);
+    const status=honTotal-honReceb===0?'pago':proxNaoPago&&daysUntilDate(proxNaoPago.dtCliente)<0?'atrasado':'ativo';
+    return `<tr onclick="openConcessaoModal('${c.id}')" style="cursor:pointer">
+      <td style="font-weight:500">${cont.nome||c.nomeCliente||'—'}<br><small style="color:var(--text3);font-size:10px">${cont.tel||''}</small></td>
+      <td><span class="badge ${c.modalidade==='40'?'badge-amber':'badge-blue'}">${c.modalidade}%</span></td>
+      <td>${fmt(c.bruto)}</td><td>${fmt(c.liquido)}</td>
+      <td style="text-align:center">${parc.filter(p=>p.pago).length}/${parc.length}</td>
+      <td style="font-weight:600">${fmt(honTotal)}</td>
+      <td style="color:var(--green)">${fmt(honReceb)}</td>
+      <td style="color:${honTotal-honReceb>0?'var(--red)':'var(--text2)'};font-weight:${honTotal-honReceb>0?600:400}">${fmt(honTotal-honReceb)}</td>
+      <td>${proxNaoPago?.dtCliente||'—'}</td>
+      <td><span class="badge ${status==='pago'?'badge-green':status==='atrasado'?'badge-red':'badge-blue'}">${status==='pago'?'Quitado':status==='atrasado'?'Atrasado':'Em andamento'}</span></td>
+    </tr>`;
+  }).join('');
+};
+
+window.preencherDadosCliente=function(){
+  const cid=$('fc_cliente').value;
+  const c=contracts.find(x=>x.id===cid); if(!c) return;
+  $('fc_modalidade').value=c.paga==='escritorio'?'40':'30';
+  const prev=$('fc_preview');
+  prev.style.display='block';
+  prev.innerHTML=`<strong>${c.nome}</strong> · ${c.tel||''}<br>
+    Tipo: ${c.tipo==='qualidade'?'Já segurada':c.tipo==='contrib-unica'?'Contrib. única':'CLT + ind.'} · 
+    Guia paga por: ${c.paga==='escritorio'?'Escritório → honorário 40%':'Cliente → honorário 30%'} · DPP: ${c.dpp||'—'}`;
+};
+
+window.abrirClienteDoFinanceiro = function(contractId){
+  if(!contractId) return;
+  // navegar para aba kanban
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  $('view-kanban').classList.add('active');
+  document.querySelectorAll('.tab-btn')[0].classList.add('active');
+  renderKanban();
+  // abrir painel após render
+  setTimeout(()=>openPanel(contractId), 150);
+};
+
+window.marcarPago=async function(cid,idx){
+  const c=concessoes.find(x=>x.id===cid); if(!c) return;
+  const parc = gerarParcelas(c).map((p,i)=>i===idx?{...p,pago:true,dtPago:new Date().toISOString().split('T')[0]}:p);
+  const parcelasManual = parc.map(p=>({dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago}));
+  await updateDoc(doc(db,'concessoes',cid),{parcelasManual});
+  toast('Honorário marcado como recebido ✓');
+};
+
+window.exportFinanceiroPDF=function(){
+  if(!isGestora()) return;
+  const linhas=concessoes.map(c=>{
+    const cont=contracts.find(x=>x.id===c.contractId)||{};
+    const parc=gerarParcelas(c);
+    const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
+    const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
+    return `<tr><td><strong>${cont.nome||c.nomeCliente}</strong><br><small>${cont.tel||''}</small></td>
+      <td>${c.modalidade}%</td><td>${fmt(c.liquido)}</td><td>${fmt(honTotal)}</td>
+      <td style="color:#3A7D44">${fmt(honReceb)}</td>
+      <td style="color:${honTotal-honReceb>0?'#B83535':'#3A7D44'}">${fmt(honTotal-honReceb)}</td>
+      <td>${parc.find(p=>!p.pago)?.dtCliente||'Quitado'}</td></tr>`;
+  }).join('');
+  const total=concessoes.reduce((s,c)=>s+gerarParcelas(c).reduce((a,x)=>a+x.honorario,0),0);
+  const receb=concessoes.reduce((s,c)=>s+gerarParcelas(c).filter(x=>x.pago).reduce((a,x)=>a+x.honorario,0),0);
+  abrirPDF(gerarHTMLPDF('Relatório Financeiro — Honorários',
+    `${concessoes.length} benefícios · Esperado: ${fmt(total)} · Recebido: ${fmt(receb)} · Em aberto: ${fmt(total-receb)}`,
+    ['Cliente','Modal.','Benef. líq.','Honor. total','Recebido','Em aberto','Próx. venc.'],
+    linhas,'⚠ Confidencial — acesso restrito à gestora'));
+};
+
+// Iniciar subscriptions ao fazer login — já chamado no onAuthStateChanged
+
+</script>
+</body>
+</html>
