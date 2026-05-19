@@ -2178,28 +2178,135 @@ window.exportNascimentosPDF = function(){
 
 window.exportResumoPDF = function(){
   const all = visibleContracts();
-  const ativos=all.filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido').length;
-  const baixas=all.filter(c=>c.etapa==='baixa').length;
-  const conc=all.filter(c=>c.etapa==='concedido').length;
+  const ativos = all.filter(c=>!['baixa','encerrado'].includes(c.etapa));
+  const baixas = all.filter(c=>c.etapa==='baixa');
+  const conc = all.filter(c=>c.etapa==='concedido');
+  const encerrados = all.filter(c=>c.etapa==='encerrado');
+  const indeferidos = all.filter(c=>c.etapa==='indeferido');
+
+  // dados por etapa para gráfico
+  const porEtapa = {};
+  COLS.forEach(col=>{ porEtapa[col.label]=all.filter(c=>c.etapa===col.id).length; });
+  const etapaEntries = Object.entries(porEtapa).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxEtapa = Math.max(...etapaEntries.map(([,v])=>v),1);
+
+  // dados por responsável
   const porResp={};
-  all.forEach(c=>{const n=usersMap[c.resp]?.nome||'—';porResp[n]=(porResp[n]||{ativos:0,conc:0,baixas:0});
-    if(c.etapa==='concedido') porResp[n].conc++;
-    else if(c.etapa==='baixa') porResp[n].baixas++;
-    else porResp[n].ativos++;
+  all.forEach(c=>{
+    const resp = c.resporiginal ? (usersMap[c.resporiginal]?.nome||c.resporiginal) : (usersMap[c.resp]?.nome||'—');
+    if(!porResp[resp]) porResp[resp]={ativos:0,conc:0,baixas:0,encerrados:0,total:0};
+    porResp[resp].total++;
+    if(c.etapa==='concedido') porResp[resp].conc++;
+    else if(c.etapa==='baixa') porResp[resp].baixas++;
+    else if(c.etapa==='encerrado') porResp[resp].encerrados++;
+    else porResp[resp].ativos++;
   });
-  const linhas=Object.entries(porResp).map(([n,v])=>`<tr><td>${n}</td><td>${v.ativos}</td><td>${v.conc}</td><td>${v.baixas}</td></tr>`).join('');
-  const resumo=`<p><strong>Total de contratos:</strong> ${all.length} | <strong>Ativos:</strong> ${ativos} | <strong>Concedidos:</strong> ${conc} | <strong>Baixas:</strong> ${baixas}</p>`;
+
+  // dados por tipo
+  const porTipo = {
+    'Já segurada': all.filter(c=>c.tipo==='qualidade').length,
+    'Contrib. única': all.filter(c=>c.tipo==='contrib-unica').length,
+    'CLT + individual': all.filter(c=>c.tipo==='clt-extra').length,
+  };
+
+  const COLORS = ['#C94F6D','#1D5FA8','#3A7D44','#A0612A','#5B4BAD','#B83535','#27500A','#856404','#185FA5'];
+
+  // gerar barras SVG inline
+  function barras(entries, maxVal, altura=80){
+    const w = Math.min(500, entries.length * 55);
+    const barW = Math.floor(w/entries.length) - 6;
+    return `<svg width="${w}" height="${altura+40}" xmlns="http://www.w3.org/2000/svg">
+      ${entries.map(([lbl,val],i)=>{
+        const h = Math.round(val/maxVal*altura);
+        const x = i*(barW+6);
+        const color = COLORS[i%COLORS.length];
+        const lblCurto = lbl.length>10?lbl.slice(0,9)+'…':lbl;
+        return `<rect x="${x}" y="${altura-h}" width="${barW}" height="${h}" fill="${color}" rx="3"/>
+          <text x="${x+barW/2}" y="${altura-h-4}" text-anchor="middle" font-size="9" fill="#333" font-family="Arial">${val}</text>
+          <text x="${x+barW/2}" y="${altura+12}" text-anchor="middle" font-size="8" fill="#666" font-family="Arial">${lblCurto}</text>`;
+      }).join('')}
+    </svg>`;
+  }
+
+  // gráfico de pizza SVG
+  function pizza(dados){
+    const total = Object.values(dados).reduce((s,v)=>s+v,0);
+    if(!total) return '';
+    let angle = -Math.PI/2;
+    const cx=80, cy=80, r=70;
+    const slices = Object.entries(dados).filter(([,v])=>v>0).map(([lbl,val],i)=>{
+      const pct = val/total;
+      const a1 = angle;
+      const a2 = angle + pct*2*Math.PI;
+      angle = a2;
+      const x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
+      const x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2);
+      const large = pct>0.5?1:0;
+      const mid = (a1+a2)/2;
+      const lx=cx+(r+18)*Math.cos(mid), ly=cy+(r+18)*Math.sin(mid);
+      return `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z" fill="${COLORS[i%COLORS.length]}"/>
+        <text x="${lx}" y="${ly}" text-anchor="middle" font-size="9" fill="#333" font-family="Arial">${Math.round(pct*100)}%</text>`;
+    });
+    const legenda = Object.entries(dados).filter(([,v])=>v>0).map(([lbl,val],i)=>
+      `<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:10px">
+        <div style="width:10px;height:10px;border-radius:2px;background:${COLORS[i%COLORS.length]};flex-shrink:0"></div>
+        ${lbl}: <strong>${val}</strong>
+      </div>`).join('');
+    return `<div style="display:flex;align-items:center;gap:20px">
+      <svg width="160" height="160" xmlns="http://www.w3.org/2000/svg">${slices.join('')}</svg>
+      <div>${legenda}</div>
+    </div>`;
+  }
+
+  const linhasResp = Object.entries(porResp).sort((a,b)=>b[1].total-a[1].total)
+    .map(([n,v])=>`<tr><td><strong>${n}</strong></td><td>${v.total}</td><td>${v.ativos}</td><td style="color:#3A7D44">${v.conc}</td><td style="color:#B83535">${v.baixas}</td><td style="color:#A0C4FF">${v.encerrados}</td></tr>`).join('');
+
   abrirPDF(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Resumo Gerencial</title>
-  <style>body{font-family:Arial,sans-serif;font-size:11px;padding:24px}h1{color:#C94F6D;font-size:16px}
-  table{width:100%;border-collapse:collapse;margin:16px 0}th{background:#F0EDE6;padding:7px;text-align:left;font-size:10px;text-transform:uppercase}
-  td{padding:6px 8px;border-bottom:1px solid #F0EDE6}p{margin:8px 0;font-size:12px}
-  @media print{body{padding:10px}}</style></head><body>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;font-size:11px;padding:24px;color:#1A1814}
+    h1{color:#C94F6D;font-size:17px;margin-bottom:4px}
+    h2{font-size:13px;color:#333;margin:20px 0 8px;border-bottom:2px solid #F0EDE6;padding-bottom:4px}
+    .sub{font-size:11px;color:#6B6560;margin-bottom:16px}
+    .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+    .metric{background:#F7F5F0;border-radius:8px;padding:10px;text-align:center}
+    .metric-val{font-size:22px;font-weight:700;margin-bottom:2px}
+    .metric-lbl{font-size:9px;color:#6B6560;text-transform:uppercase}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    th{background:#F0EDE6;padding:6px 8px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;border-bottom:2px solid #E2DDD5}
+    td{padding:5px 8px;border-bottom:1px solid #F0EDE6}
+    tr:nth-child(even) td{background:#FAFAF8}
+    .section{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px}
+    @media print{body{padding:10px}.section{grid-template-columns:1fr 1fr}}
+  </style></head><body>
   <h1>♥ MaternidadePrev — Resumo Gerencial</h1>
-  <p style="color:#6B6560">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
-  ${resumo}
-  <table><thead><tr><th>Responsável</th><th>Ativos</th><th>Concedidos</th><th>Baixas</th></tr></thead>
-  <tbody>${linhas}</tbody></table>
-  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  <div class="sub">Gerado em ${new Date().toLocaleString('pt-BR')} por ${currentProfile?.nome||'—'}</div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-val">${all.length}</div><div class="metric-lbl">Total</div></div>
+    <div class="metric"><div class="metric-val" style="color:#1D5FA8">${ativos.length}</div><div class="metric-lbl">Ativos</div></div>
+    <div class="metric"><div class="metric-val" style="color:#3A7D44">${conc.length}</div><div class="metric-lbl">Concedidos</div></div>
+    <div class="metric"><div class="metric-val" style="color:#B83535">${baixas.length}</div><div class="metric-lbl">Baixas</div></div>
+    <div class="metric"><div class="metric-val" style="color:#A0612A">${indeferidos.length}</div><div class="metric-lbl">Indeferidos</div></div>
+  </div>
+
+  <div class="section">
+    <div>
+      <h2>📊 Contratos por etapa</h2>
+      ${barras(etapaEntries, maxEtapa)}
+    </div>
+    <div>
+      <h2>🍕 Por tipo previdenciário</h2>
+      ${pizza(porTipo)}
+    </div>
+  </div>
+
+  <h2>👥 Produtividade por responsável</h2>
+  <table><thead><tr><th>Responsável</th><th>Total</th><th>Ativos</th><th>Concedidos</th><th>Baixas</th><th>Encerrados</th></tr></thead>
+  <tbody>${linhasResp}</tbody></table>
+
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
 };
 
 
