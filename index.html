@@ -1224,15 +1224,16 @@ window.verificarCPFDuplicado = function(){
 // ── CONTRACTS REALTIME ──
 function subscribeContracts(){
   const q = query(collection(db,'contracts'), orderBy('createdAt','desc'));
-  unsubContracts = onSnapshot(q, snap=>{
+  unsubContracts = onSnapshot(q, async snap=>{
     contracts=[];
     snap.forEach(d=>contracts.push({id:d.id,...d.data()}));
-    // migrar etapa 'assinaturas' para 'fechado' automaticamente
-    contracts.forEach(async c=>{
-      if(c.etapa==='assinaturas'){
-        try{ await updateDoc(doc(db,'contracts',c.id),{etapa:'fechado'}); } catch(e){}
-      }
-    });
+    // migrar etapas antigas para novos equivalentes
+    const migracoes = contracts.filter(c=>c.etapa==='assinaturas');
+    if(migracoes.length>0){
+      await Promise.all(migracoes.map(c=>updateDoc(doc(db,'contracts',c.id),{etapa:'fechado'})));
+      // atualizar localmente sem esperar novo snapshot
+      contracts = contracts.map(c=>c.etapa==='assinaturas'?{...c,etapa:'fechado'}:c);
+    }
     renderKanban(); renderDashboard(); renderList(); updateAlertBadge();
   });
 }
