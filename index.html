@@ -903,7 +903,7 @@ function toast(msg){
 function isGestora(){ return currentProfile?.role==='gestora'; }
 function canEdit(c){
   if(isGestora()) return true;
-  return c.createdBy === currentUser.uid;
+  return c.resp === currentUser.uid;
 }
 function initials(name){
   if(!name) return '??';
@@ -1060,6 +1060,14 @@ onAuthStateChanged(auth, async user => {
     subscribeContracts();
     if(isGestora()){ subscribeConcessoes(); subscribeAudit(); }
     iniciarPresenca();
+    // filtro padrão do kanban = própria usuária (exceto gestora que vê todos)
+    if(!isGestora()){
+      setTimeout(()=>{
+        const sel=$('kbFilterResp');
+        if(sel) sel.value=currentUser.uid;
+        renderKanban();
+      },500);
+    }
   } else {
     currentUser=null; currentProfile=null; contracts=[];
     $('authScreen').style.display='flex';
@@ -1351,8 +1359,8 @@ window.salvarConcessao=async function(){
 
 // ── KANBAN ──
 function visibleContracts(){
-  if(isGestora()) return contracts;
-  return contracts.filter(c=>c.createdBy===currentUser.uid||c.resp===currentUser.uid);
+  // todas as usuárias veem todos os contratos
+  return contracts;
 }
 
 window.renderKanban = function(){
