@@ -397,6 +397,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
   <!-- ── DASHBOARD VIEW ── -->
   <div class="view" id="view-dashboard">
     <div class="dash-wrap full">
+      <div id="metricsPersonal" style="display:none"></div>
       <div class="metrics-row" id="metricsRow"></div>
       <!-- colunas lado a lado -->
       <div class="dash-cols">
@@ -1711,6 +1712,36 @@ window.saveContract = async function(){
 // ── DASHBOARD ──
 window.renderDashboard = function(){
   const data = visibleContracts();
+
+  // métricas pessoais (apenas contratos da usuária logada)
+  const meuId = currentUser.uid;
+  const meus = data.filter(c=>c.resp===meuId);
+  const meusAtivos = meus.filter(c=>!['baixa','encerrado'].includes(c.etapa));
+  const meusConc = meus.filter(c=>c.etapa==='concedido');
+  const meusBaixas = meus.filter(c=>c.etapa==='baixa');
+  const meus30 = meusAtivos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)<=30);
+  const meusGuias = meusAtivos.filter(c=>c.tipo!=='qualidade'&&!c.guia_status&&!['concedido','protocolado','indeferido'].includes(c.etapa));
+
+  // mostrar bloco pessoal só para não-gestoras
+  const metricsPersonal = $('metricsPersonal');
+  if(metricsPersonal){
+    if(!isGestora()){
+      metricsPersonal.style.display='block';
+      metricsPersonal.innerHTML=`
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📋 Minha carteira — ${currentProfile?.nome?.split(' ')[0]||'você'}</div>
+        <div class="metrics-row" style="margin-bottom:20px">
+          <div class="metric-card metric-link" onclick="filtrarListaResp('${currentProfile?.nome?.split(' ')[0]||''}')"><div class="metric-val">${meus.length}</div><div class="metric-lbl">Meus contratos</div></div>
+          <div class="metric-card metric-link" onclick="filtrarListaResp('${currentProfile?.nome?.split(' ')[0]||''}')"><div class="metric-val" style="color:var(--red)">${meus30.length}</div><div class="metric-lbl">Partos em 30d</div></div>
+          <div class="metric-card metric-link" onclick="filtrarListaResp('${currentProfile?.nome?.split(' ')[0]||''}')"><div class="metric-val" style="color:var(--amber)">${meusGuias.length}</div><div class="metric-lbl">Guias pendentes</div></div>
+          <div class="metric-card metric-link" onclick="filtrarListaResp('${currentProfile?.nome?.split(' ')[0]||''}')"><div class="metric-val" style="color:var(--green)">${meusConc.length}</div><div class="metric-lbl">Concedidos</div></div>
+          <div class="metric-card metric-link" onclick="filtrarListaResp('${currentProfile?.nome?.split(' ')[0]||''}')"><div class="metric-val" style="color:var(--red)">${meusBaixas.length}</div><div class="metric-lbl">Baixas</div></div>
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🏢 Escritório — visão geral</div>`;
+    } else {
+      metricsPersonal.style.display='none';
+    }
+  }
+
   const ativos = data.filter(c=>!['baixa','encerrado'].includes(c.etapa));
   const urgent30 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)<=30);
   const urgent90 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)>30&&daysUntil(c.dpp)<=90);
@@ -1722,13 +1753,10 @@ window.renderDashboard = function(){
   const encerrados = data.filter(c=>c.etapa==='encerrado');
   const pendDocs = ativos.filter(c=>hasPendenciaImprescindivel(c)&&!['concedido','protocolado','indeferido','encerrado'].includes(c.etapa));
   const protSemResposta = ativos.filter(c=>alertaProtocolo(c));
-  // inadimplentes (honorário atrasado > 7 dias)
   const inadimplentes = concessoes.filter(c=>{
     const parc=gerarParcelas(c);
     return parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
   });
-
-  // guias escritório — definido aqui para usar nas métricas
   const guiasEscritorio = ativos.filter(c=>
     c.paga==='escritorio' && c.tipo!=='qualidade' &&
     (!c.guia_status||c.guia_status==='') &&
