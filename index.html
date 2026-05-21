@@ -1841,7 +1841,7 @@ window.renderDashboard = function(){
     return Math.round((aniv-hoje)/864e5);
   }
   const anivs=[];
-  visibleContracts().forEach(c=>{
+  visibleContracts().filter(c=>c.etapa!=='baixa').forEach(c=>{
     if(c.dtnasc){ const d=diasParaAniv(c.dtnasc); if(d<=30) anivs.push({nome:c.nome,tipo:'🎂 Cliente',data:c.dtnasc,dias:d,tel:c.tel,id:c.id}); }
     if(c.dataNascCrianca){ const d=diasParaAniv(c.dataNascCrianca); if(d<=30) anivs.push({nome:c.nome,tipo:'👶 Criança',data:c.dataNascCrianca,dias:d,tel:c.tel,id:c.id}); }
   });
