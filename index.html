@@ -2665,13 +2665,14 @@ window.renderFinanceiro = function(){
   }).join('');
 };
 
+window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); editingConcessaoId=null; };
+window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
+
 window.recalcularTodosHon = function(){
   const n = parseInt($('fc_nparcelas').value)||4;
   for(let i=0;i<n;i++) calcularHonParc(i);
 };
 
-window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); };
-window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
 
 window.preencherDadosCliente=function(){
   const cid=$('fc_cliente').value;
