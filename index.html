@@ -582,10 +582,14 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <div class="metrics-row" id="finProjecao"></div>
 
       <!-- colunas financeiras -->
-      <div class="dash-cols" style="grid-template-columns:repeat(4,1fr);margin-top:16px">
+      <div class="dash-cols" style="grid-template-columns:repeat(5,1fr);margin-top:16px">
         <div class="dash-col">
-          <div class="dash-col-title">📅 Honorários — mês atual e próximo</div>
-          <div class="dash-col-body" id="finProxCard"></div>
+          <div class="dash-col-title" id="finMesAtualTitle">📅 Honorários — mês atual</div>
+          <div class="dash-col-body" id="finMesAtualCard"></div>
+        </div>
+        <div class="dash-col">
+          <div class="dash-col-title" id="finMesProxTitle">📅 Honorários — mês seguinte</div>
+          <div class="dash-col-body" id="finMesProxCard"></div>
         </div>
         <div class="dash-col">
           <div class="dash-col-title">⚠ Honorários em aberto</div>
@@ -2584,22 +2588,25 @@ window.renderFinanceiro = function(){
   const todosProx = [...proxReceb].sort((a,b)=>a.days-b.days);
   const doMesAtual = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesAtualFin));
   const doMesProx  = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesProximo));
-  const demais     = todosProx.filter(p=>p.dt&&!p.dt.startsWith(mesAtualFin)&&!p.dt.startsWith(mesProximo));
 
-  let proxHTML = '';
-  if(doMesAtual.length){
-    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:6px 0 4px">${nomeMes(mesAtualFin)}</div>`;
-    proxHTML += doMesAtual.map(renderParcItem).join('');
-  }
-  if(doMesProx.length){
-    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:10px 0 4px">${nomeMes(mesProximo)}</div>`;
-    proxHTML += doMesProx.map(renderParcItem).join('');
-  }
-  if(demais.length){
-    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:10px 0 4px">Além de ${nomeMes(mesProximo)}</div>`;
-    proxHTML += demais.map(renderParcItem).join('');
-  }
-  $('finProxCard').innerHTML = proxHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário previsto para os próximos 2 meses.</div>';
+  // títulos com nome do mês
+  if($('finMesAtualTitle')) $('finMesAtualTitle').textContent = `📅 ${nomeMes(mesAtualFin)}`;
+  if($('finMesProxTitle'))  $('finMesProxTitle').textContent  = `📅 ${nomeMes(mesProximo)}`;
+
+  // total de cada mês
+  const totalAtual = doMesAtual.reduce((s,p)=>s+p.hon,0);
+  const totalProx  = doMesProx.reduce((s,p)=>s+p.hon,0);
+
+  if($('finMesAtualCard')) $('finMesAtualCard').innerHTML =
+    (doMesAtual.length ? `<div style="font-size:11px;font-weight:600;color:var(--green);padding:4px 0 8px">Total: ${fmt(totalAtual)}</div>` + doMesAtual.map(renderParcItem).join('') :
+    '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum honorário previsto.</div>');
+
+  if($('finMesProxCard')) $('finMesProxCard').innerHTML =
+    (doMesProx.length ? `<div style="font-size:11px;font-weight:600;color:var(--green);padding:4px 0 8px">Total: ${fmt(totalProx)}</div>` + doMesProx.map(renderParcItem).join('') :
+    '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum honorário previsto.</div>');
+
+  // manter finProxCard para compatibilidade (não exibido)
+  $('finProxCard') && ($('finProxCard').innerHTML = '');
 
   // honorários em aberto — separados em vencidos e futuros
   const abertoFilt = mesFiltro ? honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)) : honAberto;
