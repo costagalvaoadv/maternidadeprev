@@ -1337,7 +1337,16 @@ window.openConcessaoModal = function(id){
 
 window.salvarConcessao=async function(){
   if(!isGestora()) return;
-  const cid=$('fc_cliente').value; if(!cid){alert('Selecione a cliente.');return;}
+  const btnSalvar = document.querySelector('#concessaoModalOverlay .btn-save');
+  if(btnSalvar?.disabled) return; // evitar duplo clique
+  if(btnSalvar){ btnSalvar.disabled=true; btnSalvar.textContent='Salvando...'; }
+
+  const cid=$('fc_cliente').value;
+  if(!cid){
+    alert('Selecione a cliente.');
+    if(btnSalvar){ btnSalvar.disabled=false; btnSalvar.textContent='Salvar'; }
+    return;
+  }
   const cont=contracts.find(x=>x.id===cid);
   const n=parseInt($('fc_nparcelas').value)||4;
   const parcelasManual=[];
@@ -1367,7 +1376,10 @@ window.salvarConcessao=async function(){
       toast('Concessão registrada ✓');
     }
     closeConcessaoModal();
-  } catch(e){ alert('Erro: '+e.message); }
+  } catch(e){
+    alert('Erro: '+e.message);
+    if(btnSalvar){ btnSalvar.disabled=false; btnSalvar.textContent='Salvar'; }
+  }
 };
 
 // ── KANBAN ──
