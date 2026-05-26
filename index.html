@@ -1201,10 +1201,10 @@ window.renderRelFinanceiro = function(){
         parcelas.push({
           nome: cont.nome||c.nomeCliente,
           dt: p.dtCliente,
+          dtPago: p.dtPago,
           mes,
           hon: p.honorario,
           pago: p.pago,
-          dtPago: p.dtPago,
           parc: p.num,
           total: parc.length,
           isInad,
@@ -2848,16 +2848,14 @@ window.renderFinanceiro = function(){
     const parcAtras=conc?gerarParcelas(conc).filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7):[];
     const parcDetalhes=parcAtras.map(p=>`<span style="font-size:11px;background:#FDECEC;border-radius:6px;padding:2px 7px;margin-right:4px;margin-top:4px;display:inline-block">Parcela ${p.num} · ${p.dtCliente} · ${fmt(p.honorario)}</span>`).join('');
     return `<div style="background:#FFF5F5;border:1px solid #F7C1C1;border-radius:10px;padding:12px 14px;margin-bottom:8px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-weight:600;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${i.contractId}')">${i.nome}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.parcAtrasadas} parcela(s) · Total: <strong style="color:#B83535">${fmt(i.totalAtrasado)}</strong> · Em atraso desde ${i.primeiraDt||'—'}</div>
-          ${i.tel?`<div style="font-size:11px;font-family:monospace;color:var(--text2);margin-top:2px">${i.tel}</div>`:''}
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-          ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;text-decoration:none">📱 Cobrar via WhatsApp</a>`:''}
-          <button class="btn-sm" onclick="abrirClienteDoFinanceiro('${i.contractId}')" style="font-size:11px">Ver cliente</button>
-        </div>
+      <div style="margin-bottom:8px">
+        <div style="font-weight:600;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${i.contractId}')">${i.nome}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.parcAtrasadas} parcela(s) · Total: <strong style="color:#B83535">${fmt(i.totalAtrasado)}</strong> · Em atraso desde ${i.primeiraDt||'—'}</div>
+        ${i.tel?`<div style="font-size:11px;font-family:monospace;color:var(--text2);margin-top:2px">${i.tel}</div>`:''}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;text-decoration:none;flex:1;justify-content:center">📱 Cobrar via WhatsApp</a>`:''}
+        <button class="btn-sm" onclick="openConcessaoModal('${conc?.id||''}')" style="font-size:11px;flex-shrink:0">Ver parcelas</button>
       </div>
       <div style="margin-top:8px">${parcDetalhes}</div>
     </div>`;
