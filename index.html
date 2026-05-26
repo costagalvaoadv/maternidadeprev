@@ -2912,14 +2912,19 @@ window.preencherDadosCliente=function(){
 
 window.abrirClienteDoFinanceiro = function(contractId){
   if(!contractId) return;
-  // navegar para aba kanban
-  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
-  $('view-kanban').classList.add('active');
-  document.querySelectorAll('.tab-btn')[0].classList.add('active');
-  renderKanban();
-  // abrir painel após render
-  setTimeout(()=>openPanel(contractId), 150);
+  // encontrar a concessão pelo contractId e abrir o modal de edição
+  const conc = concessoes.find(x=>x.contractId===contractId);
+  if(conc){
+    openConcessaoModal(conc.id);
+  } else {
+    // se não tem concessão cadastrada, abrir o painel do cadastro
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+    $('view-kanban').classList.add('active');
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    renderKanban();
+    setTimeout(()=>openPanel(contractId), 150);
+  }
 };
 
 window.marcarPago=async function(cid,idx){
