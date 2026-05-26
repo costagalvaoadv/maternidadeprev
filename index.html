@@ -1973,7 +1973,7 @@ window.renderDashboard = function(){
   const ativos = data.filter(c=>!['baixa','encerrado'].includes(c.etapa));
   const urgent30 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)<=30);
   const urgent90 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)>30&&daysUntil(c.dpp)<=90);
-  const nasc60 = ativos.filter(c=>!['concedido','protocolado','indeferido'].includes(c.etapa)&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=60);
+  const nasc60 = ativos.filter(c=>!['concedido','protocolado','indeferido','nasceu'].includes(c.etapa)&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=60);
   const guiaPend = ativos.filter(c=>c.tipo!=='qualidade'&&!c.guia_status&&!['concedido','protocolado','indeferido'].includes(c.etapa));
   const conc = data.filter(c=>c.etapa==='concedido');
   const baixas = data.filter(c=>c.etapa==='baixa');
@@ -2015,20 +2015,25 @@ window.renderDashboard = function(){
       return {col:'#B83535',name:cont.nome||c.nomeCliente,sub:`💰 Honorário parc. ${atrasada?.num||'?'} atraso desde ${atrasada?.dtCliente||'—'} — cobrar!`,id:cont.id};
     }),
     ...ativos.filter(c=>daysUntil(c.dpp)<=14&&c.etapa!=='nasceu'&&c.etapa!=='protocolado')
-      .map(c=>({col:'#B83535',name:c.nome,sub:`Parto em ${daysUntil(c.dpp)} dias — verificar situação`,id:c.id})),
+      .map(c=>({col:'#B83535',name:c.nome,sub:`Parto em ${daysUntil(c.dpp)} dias — verificar situação`,id:c.id,tel:c.tel,whats:'parto'})),
     ...ativos.filter(c=>c.guia_status==='enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
     ...guiaPend.filter(c=>c.etapa==='fechado').map(c=>({col:'#A0612A',name:c.nome,sub:'Contrato fechado — guia não gerada',id:c.id})),
     ...pendDocs.map(c=>({col:'#856404',name:c.nome,sub:'⚠ Documento imprescindível pendente',id:c.id})),
     ...indeferidos.map(c=>({col:'#FFAD5C',name:c.nome,sub:`⚖ Indeferido em ${c.dataIndeferimento||'—'} — passar para operacional`,id:c.id})),
   ];
-  $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>`
-    <div class="alert-item">
+  $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
+    const primeiroNome = a.name.split(' ')[0];
+    const msgParto = encodeURIComponent(`Olá, ${primeiroNome}, tudo bem? 😊\nVi aqui que está chegando o grande momento e faltam poucos dias para a chegada do bebê. Estou passando para saber como você está e desejar que ocorra tudo bem nessa reta final.\nAssim que o bebê nascer e for feito o registro, me encaminhe a certidão de nascimento para darmos continuidade ao andamento do benefício e deixarmos tudo certinho por aqui.\nQue venha com muita saúde! 🥰`);
+    const wLink = a.whats==='parto' && a.tel ? `https://wa.me/55${a.tel.replace(/\D/g,'')}?text=${msgParto}` : '';
+    return `<div class="alert-item">
       <div class="alert-dot" style="background:${a.col}"></div>
-      <div>
+      <div style="flex:1">
         <div class="alert-name" style="${a.id?'cursor:pointer;text-decoration:underline;text-underline-offset:2px':''}" ${a.id?`onclick="openPanel('${a.id}')"`:''}>${a.name}</div>
         <div class="alert-sub">${a.sub}</div>
+        ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;text-decoration:none;margin-top:4px">📱 WhatsApp</a>`:''}
       </div>
-    </div>`).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>';
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>';
 
   const nb=nasc60.sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
   $('birthCard').innerHTML = nb.length ? nb.map(c=>`
