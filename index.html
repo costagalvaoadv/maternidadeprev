@@ -574,10 +574,15 @@ tr:hover td{background:var(--bg);cursor:pointer}
       </div>
 
       <!-- métricas financeiras -->
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">💰 Realizado — benefícios concedidos</div>
       <div class="metrics-row" id="finMetrics"></div>
 
+      <!-- bloco projeção -->
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">🚀 Projeção — potencial dos contratos ativos</div>
+      <div class="metrics-row" id="finProjecao"></div>
+
       <!-- colunas financeiras -->
-      <div class="dash-cols" style="grid-template-columns:repeat(4,1fr);margin-top:4px">
+      <div class="dash-cols" style="grid-template-columns:repeat(4,1fr);margin-top:16px">
         <div class="dash-col">
           <div class="dash-col-title">📅 Recebimentos previstos — 60 dias</div>
           <div class="dash-col-body" id="finProxCard"></div>
@@ -1909,6 +1914,12 @@ window.limparFiltros = function(){
   renderList();
 };
 
+// Scroll para coluna financeira
+window.scrollFinCol = function(cardId){
+  const el=$(cardId);
+  if(el) el.closest('.dash-col')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+};
+
 // Scroll suave para coluna do dashboard
 window.scrollDashCol = function(cardId){
   const el = $(cardId);
@@ -2458,21 +2469,60 @@ window.renderFinanceiro = function(){
   proxReceb.sort((a,b)=>a.days-b.days);
   honAberto.sort((a,b)=>a.days-b.days);
 
-  const ticketMedio = concessoes.length>0 ? (totalHon+totalReceb)/concessoes.length : 0;
+  const ticketMedio = concessoes.length>0 ? (totalHon+totalReceb+totalAResgatar)/concessoes.length : 0;
   const taxaInad = concessoes.length>0 ? (inadimplentes.length/concessoes.length*100).toFixed(1) : '0.0';
   const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
 
   $('finMetrics').innerHTML=`
-    <div class="metric-card"><div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber (adimpl.)</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAResgatar)}</div><div class="metric-lbl">A resgatar (inadimp.)</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
-    <div class="metric-card" style="cursor:pointer" onclick="document.getElementById('finInadCard').scrollIntoView({behavior:'smooth'})">
+    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver benefícios">
+      <div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver detalhes">
+      <div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finProxCard')" title="Ver recebimentos previstos">
+      <div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber</div></div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" title="Ver inadimplentes">
+      <div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAResgatar)}</div><div class="metric-lbl">A resgatar (inadimp.)</div></div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ticket médio por benefício">
+      <div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" title="Ver inadimplentes">
       <div class="metric-val" style="color:var(--red)">${inadimplentes.length}</div>
       <div class="metric-lbl" style="margin-bottom:4px">Inadimplentes</div>
       <div style="font-size:18px;font-weight:600;color:${corTaxa}">${taxaInad}%</div>
       <div style="font-size:10px;color:var(--text2)">taxa inadimplência</div>
+    </div>
+  `;
+
+  // bloco projeção
+  const ativosProj = visibleContracts().filter(c=>!['baixa','encerrado','concedido'].includes(c.etapa));
+  const ticketProj = concessoes.length>=5 ? ticketMedio : (ticketMedio>0 ? ticketMedio : 1800);
+  const projecaoTotal = ativosProj.length * ticketProj;
+  const taxaConversao = visibleContracts().length>0 ? (concessoes.length/visibleContracts().length*100).toFixed(1) : '0.0';
+  const receitaTotal = totalReceb + totalHon + projecaoTotal;
+  const finProj=$('finProjecao');
+  if(finProj) finProj.innerHTML=`
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val">${ativosProj.length}</div>
+      <div class="metric-lbl">Contratos ativos</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED" title="Ticket médio × contratos ativos">
+      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(projecaoTotal)}</div>
+      <div class="metric-lbl">Potencial em honorários</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${ativosProj.length} contratos × ${fmt(ticketProj)}</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(receitaTotal)}</div>
+      <div class="metric-lbl">Receita total estimada</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Recebido + a receber + potencial</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val" style="font-size:22px;color:#27500A">${taxaConversao}%</div>
+      <div class="metric-lbl">Taxa de conversão</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length} concedidos / ${visibleContracts().length} total</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val" style="font-size:16px;color:#27500A">${fmt(ticketProj)}</div>
+      <div class="metric-lbl">Ticket médio usado</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length>=5?'✓ Calculado automaticamente':'Base estimada'}</div>
     </div>
   `;
 
