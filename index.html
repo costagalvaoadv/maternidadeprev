@@ -604,6 +604,49 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <div class="dash-col-body" id="finConcedidosCard" style="max-height:460px;overflow-y:scroll"></div>
         </div>
       </div>
+
+      <!-- RELATÓRIO FINANCEIRO -->
+      <div style="margin-top:24px">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">📊 Relatório financeiro — por período</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px">
+
+          <!-- filtros -->
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+            <select id="relFinPeriodo" onchange="renderRelFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text)">
+              <option value="mes_atual">Mês atual</option>
+              <option value="mes_anterior">Mês anterior</option>
+              <option value="3m">Últimos 3 meses</option>
+              <option value="6m">Últimos 6 meses</option>
+              <option value="12m">Último ano</option>
+              <option value="custom">Período personalizado</option>
+            </select>
+            <div id="relFinCustom" style="display:none;display:flex;gap:6px;align-items:center">
+              <input type="month" id="relFinDe" style="padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text)" onchange="renderRelFinanceiro()">
+              <span style="font-size:12px;color:var(--text2)">até</span>
+              <input type="month" id="relFinAte" style="padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text)" onchange="renderRelFinanceiro()">
+            </div>
+            <button class="btn-export btn-export-pdf" onclick="exportRelFinanceiroPDF()" style="margin-left:auto">⬇ PDF</button>
+          </div>
+
+          <!-- métricas do período -->
+          <div class="metrics-row" id="relFinMetrics" style="margin-bottom:16px"></div>
+
+          <!-- gráfico barras mês a mês -->
+          <div style="margin-bottom:16px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text2)">Evolução mensal dos honorários</div>
+            <div id="relFinGrafico" style="display:flex;align-items:flex-end;gap:8px;height:140px;padding:0 4px"></div>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:11px">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3A7D44;display:inline-block"></span>Recebido</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#D4900A;display:inline-block"></span>A receber</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#B83535;display:inline-block"></span>Inadimplente</span>
+            </div>
+          </div>
+
+          <!-- listagem do período -->
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Detalhamento das parcelas</div>
+          <div style="max-height:320px;overflow-y:auto" id="relFinLista"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1110,7 +1153,150 @@ function populateRespSelects(){
   if(ro){ ro.innerHTML=optsComVazio; }
 }
 
-// ── BACKUP COMPLETO ──
+// ── RELATÓRIO FINANCEIRO ──
+window.renderRelFinanceiro = function(){
+  if(!$('relFinPeriodo')) return;
+  const periodo = $('relFinPeriodo').value;
+  const hoje = new Date();
+  const customDiv = $('relFinCustom');
+
+  // mostrar/esconder campos custom
+  if(customDiv) customDiv.style.display = periodo==='custom'?'flex':'none';
+
+  // calcular intervalo
+  let iniMes, fimMes;
+  if(periodo==='mes_atual'){
+    iniMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    fimMes = iniMes;
+  } else if(periodo==='mes_anterior'){
+    const ant = new Date(hoje.getFullYear(), hoje.getMonth()-1, 1);
+    iniMes = `${ant.getFullYear()}-${String(ant.getMonth()+1).padStart(2,'0')}`;
+    fimMes = iniMes;
+  } else if(periodo==='3m'){
+    const ini = new Date(hoje.getFullYear(), hoje.getMonth()-2, 1);
+    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
+    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  } else if(periodo==='6m'){
+    const ini = new Date(hoje.getFullYear(), hoje.getMonth()-5, 1);
+    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
+    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  } else if(periodo==='12m'){
+    const ini = new Date(hoje.getFullYear()-1, hoje.getMonth()+1, 1);
+    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
+    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  } else {
+    iniMes = $('relFinDe')?.value || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    fimMes = $('relFinAte')?.value || iniMes;
+  }
+
+  // coletar todas as parcelas no período
+  const parcelas = [];
+  concessoes.forEach(c=>{
+    const parc = gerarParcelas(c);
+    const cont = contracts.find(x=>x.id===c.contractId)||{};
+    const isInad = parc.some(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
+    parc.forEach(p=>{
+      const mes = p.dtCliente ? p.dtCliente.slice(0,7) : '';
+      if(mes>=iniMes && mes<=fimMes){
+        parcelas.push({
+          nome: cont.nome||c.nomeCliente,
+          dt: p.dtCliente,
+          mes,
+          hon: p.honorario,
+          pago: p.pago,
+          dtPago: p.dtPago,
+          parc: p.num,
+          total: parc.length,
+          isInad,
+          cid: c.id,
+          contractId: c.contractId,
+        });
+      }
+    });
+  });
+
+  parcelas.sort((a,b)=>a.dt?.localeCompare(b.dt||'')||0);
+
+  const totalEsperado = parcelas.reduce((s,p)=>s+p.hon,0);
+  const totalRecebido = parcelas.filter(p=>p.pago).reduce((s,p)=>s+p.hon,0);
+  const totalPendente = parcelas.filter(p=>!p.pago&&!p.isInad).reduce((s,p)=>s+p.hon,0);
+  const totalInad = parcelas.filter(p=>!p.pago&&p.isInad).reduce((s,p)=>s+p.hon,0);
+
+  // métricas
+  $('relFinMetrics').innerHTML=`
+    <div class="metric-card"><div class="metric-val">${parcelas.length}</div><div class="metric-lbl">Parcelas no período</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px">${fmt(totalEsperado)}</div><div class="metric-lbl">Total esperado</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalRecebido)}</div><div class="metric-lbl">✓ Recebido</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalPendente)}</div><div class="metric-lbl">⏳ A receber</div></div>
+    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalInad)}</div><div class="metric-lbl">🚨 Inadimplente</div></div>
+  `;
+
+  // gráfico mês a mês
+  const meses = {};
+  parcelas.forEach(p=>{
+    if(!meses[p.mes]) meses[p.mes]={recebido:0,pendente:0,inad:0};
+    if(p.pago) meses[p.mes].recebido+=p.hon;
+    else if(p.isInad) meses[p.mes].inad+=p.hon;
+    else meses[p.mes].pendente+=p.hon;
+  });
+  const mesKeys = Object.keys(meses).sort();
+  const maxVal = Math.max(...mesKeys.map(m=>meses[m].recebido+meses[m].pendente+meses[m].inad),1);
+
+  $('relFinGrafico').innerHTML = mesKeys.length ? mesKeys.map(m=>{
+    const {recebido,pendente,inad} = meses[m];
+    const total = recebido+pendente+inad;
+    const hRec = Math.round(recebido/maxVal*120);
+    const hPen = Math.round(pendente/maxVal*120);
+    const hInad = Math.round(inad/maxVal*120);
+    const nomM = new Date(m+'-01').toLocaleString('pt-BR',{month:'short',year:'2-digit'});
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:40px;cursor:pointer" title="${nomM}: ${fmt(total)}">
+      <div style="font-size:9px;font-weight:600;color:var(--text2);margin-bottom:3px">${fmt(total)}</div>
+      <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:120px;gap:1px">
+        ${hInad?`<div style="height:${hInad}px;background:#B83535;border-radius:3px 3px 0 0;width:100%" title="Inadimplente: ${fmt(inad)}"></div>`:''}
+        ${hPen?`<div style="height:${hPen}px;background:#D4900A;width:100%" title="A receber: ${fmt(pendente)}"></div>`:''}
+        ${hRec?`<div style="height:${hRec}px;background:#3A7D44;border-radius:${!hPen&&!hInad?'3px 3px':''} 0 0;width:100%" title="Recebido: ${fmt(recebido)}"></div>`:''}
+      </div>
+      <div style="font-size:9px;color:var(--text2);margin-top:4px;text-align:center">${nomM}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text2)">Nenhum dado no período.</div>';
+
+  // listagem detalhada
+  $('relFinLista').innerHTML = parcelas.length ? parcelas.map(p=>{
+    const cor = p.pago?'#3A7D44':p.isInad?'#B83535':'#A0612A';
+    const status = p.pago?'✓ Recebido':p.isInad?'⚠ Inadimplente':'⏳ Pendente';
+    const bg = p.pago?'':p.isInad?'background:#FFF5F5;':'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);${bg}font-size:12px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></div>
+      <div style="flex:1;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</div>
+      <div style="color:var(--text2);font-size:11px">Parc. ${p.parc}/${p.total}</div>
+      <div style="color:var(--text2);font-size:11px">${p.dt||'—'}</div>
+      <div style="font-weight:600;color:${cor}">${fmt(p.hon)}</div>
+      <div style="font-size:11px;color:${cor};white-space:nowrap">${status}</div>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma parcela no período selecionado.</div>';
+};
+
+window.exportRelFinanceiroPDF = function(){
+  if(!$('relFinPeriodo')) return;
+  const periodo = $('relFinPeriodo');
+  const label = periodo.options[periodo.selectedIndex].text;
+  const metricas = $('relFinMetrics')?.innerHTML||'';
+  const lista = $('relFinLista')?.innerHTML||'';
+  abrirPDF(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório Financeiro</title>
+  <style>body{font-family:Arial,sans-serif;font-size:11px;padding:24px;color:#1A1814}
+  h1{color:#C94F6D;font-size:16px;margin-bottom:4px}
+  .metrics-row{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap}
+  .metric-card{background:#F7F5F0;border-radius:8px;padding:10px 14px;text-align:center;flex:1;min-width:100px}
+  .metric-val{font-size:18px;font-weight:700;margin-bottom:2px}
+  .metric-lbl{font-size:9px;color:#6B6560;text-transform:uppercase}
+  @media print{body{padding:10px}}</style></head><body>
+  <h1>💰 MaternidadePrev — Relatório Financeiro</h1>
+  <p style="color:#6B6560;font-size:11px">Período: ${label} · Gerado em ${new Date().toLocaleString('pt-BR')} por ${currentProfile?.nome||'—'}</p>
+  <div class="metrics-row">${metricas}</div>
+  <div style="margin-top:16px">${lista}</div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+};
 window.exportBackupCompleto = async function(){
   if(!isGestora()) return;
   toast('Gerando backup... aguarde');
@@ -2696,6 +2882,9 @@ window.renderFinanceiro = function(){
       <td><span class="badge ${status==='pago'?'badge-green':status==='atrasado'?'badge-red':'badge-blue'}">${status==='pago'?'Quitado':status==='atrasado'?'Atrasado':'Em andamento'}</span></td>
     </tr>`;
   }).join('');
+
+  // renderizar relatório financeiro
+  renderRelFinanceiro();
 };
 
 window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); editingConcessaoId=null; };
