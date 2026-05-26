@@ -584,7 +584,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <!-- colunas financeiras -->
       <div class="dash-cols" style="grid-template-columns:repeat(4,1fr);margin-top:16px">
         <div class="dash-col">
-          <div class="dash-col-title">📅 Recebimentos previstos — 60 dias</div>
+          <div class="dash-col-title">📅 Honorários — mês atual e próximo</div>
           <div class="dash-col-body" id="finProxCard"></div>
         </div>
         <div class="dash-col">
@@ -596,10 +596,8 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <div class="dash-col-body" id="finInadCard"></div>
         </div>
         <div class="dash-col">
-          <div class="dash-col-title" style="display:flex;justify-content:space-between;align-items:center">
-            <span>📋 Benefícios concedidos</span>
-          </div>
-          <div class="dash-col-body" id="finConcedidosCard"></div>
+          <div class="dash-col-title">📋 Benefícios concedidos</div>
+          <div class="dash-col-body" id="finConcedidosCard" style="max-height:460px;overflow-y:scroll"></div>
         </div>
       </div>
     </div>
@@ -2601,7 +2599,7 @@ window.renderFinanceiro = function(){
     proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:10px 0 4px">Além de ${nomeMes(mesProximo)}</div>`;
     proxHTML += demais.map(renderParcItem).join('');
   }
-  $('finProxCard').innerHTML = proxHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum recebimento previsto nos próximos 60 dias.</div>';
+  $('finProxCard').innerHTML = proxHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário previsto para os próximos 2 meses.</div>';
 
   // honorários em aberto — separados em vencidos e futuros
   const abertoFilt = mesFiltro ? honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)) : honAberto;
