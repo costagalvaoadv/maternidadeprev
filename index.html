@@ -2562,7 +2562,7 @@ window.renderFinanceiro = function(){
   // recebimentos por mês atual e próximo
   const idsInad = idsInadTemp;
   const hoje2 = new Date();
-  const mesAtual = `${hoje2.getFullYear()}-${String(hoje2.getMonth()+1).padStart(2,'0')}`;
+  const mesAtualFin = `${hoje2.getFullYear()}-${String(hoje2.getMonth()+1).padStart(2,'0')}`;
   const proxMesD = new Date(hoje2.getFullYear(), hoje2.getMonth()+1, 1);
   const mesProximo = `${proxMesD.getFullYear()}-${String(proxMesD.getMonth()+1).padStart(2,'0')}`;
 
@@ -2584,13 +2584,13 @@ window.renderFinanceiro = function(){
   }
 
   const todosProx = [...proxReceb].sort((a,b)=>a.days-b.days);
-  const doMesAtual = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesAtual));
+  const doMesAtual = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesAtualFin));
   const doMesProx  = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesProximo));
-  const demais     = todosProx.filter(p=>p.dt&&!p.dt.startsWith(mesAtual)&&!p.dt.startsWith(mesProximo));
+  const demais     = todosProx.filter(p=>p.dt&&!p.dt.startsWith(mesAtualFin)&&!p.dt.startsWith(mesProximo));
 
   let proxHTML = '';
   if(doMesAtual.length){
-    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:6px 0 4px">${nomeMes(mesAtual)}</div>`;
+    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:6px 0 4px">${nomeMes(mesAtualFin)}</div>`;
     proxHTML += doMesAtual.map(renderParcItem).join('');
   }
   if(doMesProx.length){
