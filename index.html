@@ -2501,41 +2501,46 @@ window.renderFinanceiro = function(){
   const taxaInad = concessoes.length>0 ? (inadimplentes.length/concessoes.length*100).toFixed(1) : '0.0';
   const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
 
+  // métricas — inadimplentes unificado com a resgatar
   $('finMetrics').innerHTML=`
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver benefícios">
       <div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
-    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver detalhes">
+    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
       <div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
-    <div class="metric-card metric-link" onclick="scrollFinCol('finProxCard')" title="Ver recebimentos previstos">
+    <div class="metric-card metric-link" onclick="scrollFinCol('finProxCard')">
       <div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber</div></div>
-    <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" title="Ver inadimplentes">
-      <div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalAResgatar)}</div><div class="metric-lbl">A resgatar (inadimp.)</div></div>
-    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ticket médio por benefício">
+    <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
       <div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
-    <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" title="Ver inadimplentes">
-      <div class="metric-val" style="color:var(--red)">${inadimplentes.length}</div>
-      <div class="metric-lbl" style="margin-bottom:4px">Inadimplentes</div>
-      <div style="font-size:18px;font-weight:600;color:${corTaxa}">${taxaInad}%</div>
-      <div style="font-size:10px;color:var(--text2)">taxa inadimplência</div>
+    <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" style="border:1px solid #F7C1C1;background:#FFF5F5">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="metric-val" style="color:var(--red);margin:0">${inadimplentes.length}</div>
+        <div style="font-size:18px;font-weight:600;color:${corTaxa}">${taxaInad}%</div>
+      </div>
+      <div class="metric-lbl" style="margin-bottom:4px">Inadimplentes · taxa</div>
+      <div style="font-size:13px;font-weight:600;color:var(--red)">${fmt(totalAResgatar)}</div>
+      <div style="font-size:10px;color:var(--text2)">a resgatar</div>
     </div>
   `;
 
-  // bloco projeção
+  // projeção — corrigir taxa de conversão e nome
   const ativosProj = visibleContracts().filter(c=>!['baixa','encerrado','concedido'].includes(c.etapa));
   const ticketProj = concessoes.length>=5 ? ticketMedio : (ticketMedio>0 ? ticketMedio : 1800);
   const projecaoTotal = ativosProj.length * ticketProj;
-  const taxaConversao = visibleContracts().length>0 ? (concessoes.length/visibleContracts().length*100).toFixed(1) : '0.0';
+  // taxa de conversão = concedidos / (concedidos + em andamento)
+  const baseConversao = concessoes.length + ativosProj.length;
+  const taxaConversao = baseConversao>0 ? (concessoes.length/baseConversao*100).toFixed(1) : '0.0';
   const receitaTotal = totalReceb + totalHon + projecaoTotal;
   const finProj=$('finProjecao');
   if(finProj) finProj.innerHTML=`
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val">${ativosProj.length}</div>
-      <div class="metric-lbl">Contratos ativos</div>
+      <div class="metric-lbl">Em andamento</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Não concedidos, não encerrados</div>
     </div>
-    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED" title="Ticket médio × contratos ativos">
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(projecaoTotal)}</div>
       <div class="metric-lbl">Potencial em honorários</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${ativosProj.length} contratos × ${fmt(ticketProj)}</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${ativosProj.length} em andamento × ${fmt(ticketProj)}</div>
     </div>
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(receitaTotal)}</div>
@@ -2545,7 +2550,7 @@ window.renderFinanceiro = function(){
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val" style="font-size:22px;color:#27500A">${taxaConversao}%</div>
       <div class="metric-lbl">Taxa de conversão</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length} concedidos / ${visibleContracts().length} total</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length} concedidos / ${baseConversao} elegíveis</div>
     </div>
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val" style="font-size:16px;color:#27500A">${fmt(ticketProj)}</div>
@@ -2554,53 +2559,76 @@ window.renderFinanceiro = function(){
     </div>
   `;
 
+  // recebimentos por mês atual e próximo
   const idsInad = idsInadTemp;
-  const proxNormais = proxReceb.filter(p=>!idsInad.has(p.contractId));
-  const proxInad    = proxReceb.filter(p=>idsInad.has(p.contractId));
-  let proxHTML = '';
-  if(proxInad.length){
-    proxHTML += proxInad.map(p=>{
-      const wLink=p.tel?`https://wa.me/55${p.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${p.nome.split(' ')[0]}! Passando para lembrar que o honorário referente ao seu benefício (parcela ${p.parc}/${p.total}) está em aberto. Qualquer dúvida estou à disposição. 😊`)}`:'';
-      return `<div class="alert-item" style="background:#FFF5F5;border-radius:8px;padding:8px 10px;margin-bottom:4px;border:1px solid #F7C1C1">
-        <div class="alert-dot" style="background:#B83535"></div>
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</span>
-            <span class="badge badge-atrasado">⚠ INADIMPLENTE · ${Math.abs(p.days)}d atraso</span>
-          </div>
-          <div class="alert-sub">Parcela ${p.parc}/${p.total} · Prevista ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?` · <span style="font-family:monospace">${p.tel}</span>`:''}
-            ${wLink?`<a href="${wLink}" target="_blank" style="margin-left:6px;display:inline-flex;align-items:center;gap:3px;background:#25D366;color:#fff;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`:''}
-          </div>
-        </div>
-        <button class="btn-sm" style="font-size:11px;white-space:nowrap;flex-shrink:0;border-color:#F7C1C1;color:var(--red)" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
-      </div>`;
-    }).join('');
-  }
-  if(proxNormais.length){
-    proxHTML += proxNormais.map(p=>{
-      const cls=p.days<=7?'badge-red':p.days<=30?'badge-vence':'badge-gray';
-      const label=p.days===0?'Hoje':p.days<=7?`${p.days}d`:p.dt;
-      return `<div class="alert-item">
-        <div class="alert-dot" style="background:${p.days<=7?'#B83535':p.days<=30?'#A0612A':'#3A7D44'}"></div>
-        <div style="flex:1">
-          <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge ${cls}">${label}</span></div>
-          <div class="alert-sub">Parcela ${p.parc}/${p.total} · Cliente recebe em ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
-        </div>
-        <button class="btn-sm" style="font-size:11px;white-space:nowrap;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
-      </div>`;
-    }).join('');
-  }
-  $('finProxCard').innerHTML=proxHTML||'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum recebimento previsto nos próximos 60 dias.</div>';
+  const hoje2 = new Date();
+  const mesAtual = `${hoje2.getFullYear()}-${String(hoje2.getMonth()+1).padStart(2,'0')}`;
+  const proxMesD = new Date(hoje2.getFullYear(), hoje2.getMonth()+1, 1);
+  const mesProximo = `${proxMesD.getFullYear()}-${String(proxMesD.getMonth()+1).padStart(2,'0')}`;
 
-  const abertoFilt=mesFiltro?honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)):honAberto;
-  $('finAbertoCard').innerHTML=abertoFilt.length?abertoFilt.map(p=>`
-    <div class="alert-item">
-      <div class="alert-dot" style="background:${p.days<0?'#B83535':'#A0612A'}"></div>
+  function nomeMes(ym){ const [y,m]=ym.split('-'); return new Date(y,m-1,1).toLocaleString('pt-BR',{month:'long',year:'numeric'}); }
+
+  function renderParcItem(p){
+    const inad = idsInad.has(p.contractId);
+    const labelDias = p.days===0?'Hoje':p.days===1?'Amanhã':p.days<0?`${Math.abs(p.days)}d atraso`:`${p.days}d`;
+    const cor = inad?'#B83535':p.days<=1?'#B83535':p.days<=7?'#A0612A':'#3A7D44';
+    const cls = inad||p.days<=1?'badge-red':p.days<=7?'badge-vence':'badge-gray';
+    return `<div class="alert-item">
+      <div class="alert-dot" style="background:${cor}"></div>
       <div style="flex:1">
-        <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</div>
-        <div class="alert-sub"><span class="badge ${p.days<0?'badge-atrasado':'badge-vence'}">${p.days<0?Math.abs(p.days)+'d atrasado':p.dt}</span> · Parcela ${p.parc}/${p.total} · Honorário: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+        <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge ${cls}">${labelDias}</span>${inad?'<span class="badge badge-atrasado" style="margin-left:4px">Inadimplente</span>':''}</div>
+        <div class="alert-sub">Parcela ${p.parc}/${p.total} · ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
       </div>
-    </div>`).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário em aberto. ✓</div>';
+      <button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
+    </div>`;
+  }
+
+  const todosProx = [...proxReceb].sort((a,b)=>a.days-b.days);
+  const doMesAtual = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesAtual));
+  const doMesProx  = todosProx.filter(p=>p.dt&&p.dt.startsWith(mesProximo));
+  const demais     = todosProx.filter(p=>p.dt&&!p.dt.startsWith(mesAtual)&&!p.dt.startsWith(mesProximo));
+
+  let proxHTML = '';
+  if(doMesAtual.length){
+    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:6px 0 4px">${nomeMes(mesAtual)}</div>`;
+    proxHTML += doMesAtual.map(renderParcItem).join('');
+  }
+  if(doMesProx.length){
+    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:10px 0 4px">${nomeMes(mesProximo)}</div>`;
+    proxHTML += doMesProx.map(renderParcItem).join('');
+  }
+  if(demais.length){
+    proxHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:10px 0 4px">Além de ${nomeMes(mesProximo)}</div>`;
+    proxHTML += demais.map(renderParcItem).join('');
+  }
+  $('finProxCard').innerHTML = proxHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum recebimento previsto nos próximos 60 dias.</div>';
+
+  // honorários em aberto — separados em vencidos e futuros
+  const abertoFilt = mesFiltro ? honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)) : honAberto;
+  const vencidos = abertoFilt.filter(p=>p.days<0).sort((a,b)=>a.days-b.days);
+  const futuros  = abertoFilt.filter(p=>p.days>=0).sort((a,b)=>a.days-b.days);
+  let abertoHTML = '';
+  if(vencidos.length){
+    abertoHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#B83535;letter-spacing:.05em;padding:6px 0 4px">⚠ Vencidos — não recebidos</div>`;
+    abertoHTML += vencidos.map(p=>`<div class="alert-item">
+      <div class="alert-dot" style="background:#B83535"></div>
+      <div style="flex:1">
+        <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge badge-atrasado">${Math.abs(p.days)}d atraso</span></div>
+        <div class="alert-sub">Parcela ${p.parc}/${p.total} · Previsão ${p.dt} · <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+      </div>
+    </div>`).join('');
+  }
+  if(futuros.length){
+    abertoHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:${vencidos.length?10:6}px 0 4px">Futuros — dentro do prazo</div>`;
+    abertoHTML += futuros.map(p=>`<div class="alert-item">
+      <div class="alert-dot" style="background:#A0612A"></div>
+      <div style="flex:1">
+        <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</div>
+        <div class="alert-sub">Parcela ${p.parc}/${p.total} · Previsão ${p.dt} · <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+      </div>
+    </div>`).join('');
+  }
+  $('finAbertoCard').innerHTML = abertoHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário em aberto. ✓</div>';
 
   // coluna benefícios concedidos
   const concCard=$('finConcedidosCard');
