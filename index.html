@@ -2587,6 +2587,9 @@ window.renderFinanceiro = function(){
   }).join('');
 };
 
+window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); };
+window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
+
 window.preencherDadosCliente=function(){
   const cid=$('fc_cliente').value;
   const c=contracts.find(x=>x.id===cid); if(!c) return;
