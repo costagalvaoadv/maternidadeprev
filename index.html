@@ -381,6 +381,8 @@ tr:hover td{background:var(--bg);cursor:pointer}
   <div class="view active" id="view-kanban">
     <div class="kanban-toolbar">
       <button class="btn-new" onclick="openNewModal()">+ Novo contrato</button>
+      <input type="text" id="kbSearch" placeholder="🔍 Buscar cliente..." oninput="renderKanban()"
+        style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);width:200px">
       <select class="filter-sel" id="kbFilterResp" onchange="renderKanban()">
         <option value="">Todos os responsáveis</option>
       </select>
@@ -580,6 +582,12 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <!-- bloco projeção -->
       <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">🚀 Projeção — potencial dos contratos ativos</div>
       <div class="metrics-row" id="finProjecao"></div>
+
+      <!-- busca financeiro -->
+      <div style="margin-bottom:12px">
+        <input type="text" id="finSearch" placeholder="🔍 Buscar cliente no financeiro..." oninput="renderFinanceiro()"
+          style="padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface);color:var(--text);width:300px">
+      </div>
 
       <!-- colunas financeiras -->
       <div class="dash-cols" style="grid-template-columns:repeat(5,1fr);margin-top:16px">
@@ -1603,9 +1611,11 @@ function visibleContracts(){
 window.renderKanban = function(){
   const respF = $('kbFilterResp')?.value||'';
   const tipoF = $('kbFilterTipo')?.value||'';
+  const search = ($('kbSearch')?.value||'').toLowerCase().trim();
   let data = visibleContracts().filter(c=>{
     if(respF && c.resp!==respF) return false;
     if(tipoF && c.tipo!==tipoF) return false;
+    if(search && !c.nome?.toLowerCase().includes(search)) return false;
     return true;
   });
   $('kanbanBoard').innerHTML = COLS.map(col=>{
@@ -2646,6 +2656,10 @@ function subscribeConcessoes(){
 window.renderFinanceiro = function(){
   if(!isGestora()) return;
   const hoje=new Date();
+  const finSearchVal = ($('finSearch')?.value||'').toLowerCase().trim();
+  const concessoesFiltradas = finSearchVal
+    ? concessoes.filter(c=>(c.nomeCliente||'').toLowerCase().includes(finSearchVal))
+    : concessoes;
   // filtro meses
   const meses=new Set();
   concessoes.forEach(c=>{gerarParcelas(c).forEach(p=>{ if(p.dtCliente&&p.dtCliente!=='—') meses.add(p.dtCliente.slice(0,7)); });});
@@ -2661,13 +2675,13 @@ window.renderFinanceiro = function(){
   const idsInadTemp=new Set();
 
   // primeira passagem: identificar inadimplentes
-  concessoes.forEach(c=>{
+  concessoesFiltradas.forEach(c=>{
     const parc=gerarParcelas(c);
     const temInad=parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
     if(temInad) idsInadTemp.add(c.contractId);
   });
 
-  concessoes.forEach(c=>{
+  concessoesFiltradas.forEach(c=>{
     const parc=gerarParcelas(c);
     const cont=contracts.find(x=>x.id===c.contractId)||{};
     const isInad=idsInadTemp.has(c.contractId);
