@@ -1544,6 +1544,9 @@ window.openConcessaoModal = function(id){
   $('concessaoModalOverlay').classList.add('open');
 };
 
+window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); editingConcessaoId=null; };
+window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
+
 window.salvarConcessao=async function(){
   if(!isGestora()) return;
   const btnSalvar = document.querySelector('#concessaoModalOverlay .btn-save');
@@ -2894,9 +2897,6 @@ window.renderFinanceiro = function(){
   // renderizar relatório financeiro
   renderRelFinanceiro();
 };
-
-window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); editingConcessaoId=null; };
-window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
 
 window.recalcularTodosHon = function(){
   const n = parseInt($('fc_nparcelas').value)||4;
