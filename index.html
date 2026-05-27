@@ -1552,7 +1552,12 @@ window.openConcessaoModal = function(id){
   $('concessaoModalOverlay').classList.add('open');
 };
 
-window.closeConcessaoModal = function(){ $('concessaoModalOverlay').classList.remove('open'); editingConcessaoId=null; };
+window.closeConcessaoModal = function(){
+  const btn = document.querySelector('#concessaoModalOverlay .btn-save');
+  if(btn){ btn.disabled=false; btn.textContent='Salvar'; }
+  $('concessaoModalOverlay').classList.remove('open');
+  editingConcessaoId=null;
+};
 window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
 
 window.salvarConcessao=async function(){
@@ -1595,6 +1600,7 @@ window.salvarConcessao=async function(){
       if(cont) await updateDoc(doc(db,'contracts',cid),{etapa:'concedido'});
       toast('Concessão registrada ✓');
     }
+    if(btnSalvar){ btnSalvar.disabled=false; btnSalvar.textContent='Salvar'; }
     closeConcessaoModal();
   } catch(e){
     alert('Erro: '+e.message);
