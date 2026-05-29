@@ -2666,7 +2666,12 @@ window.renderFinanceiro = function(){
   const hoje=new Date();
   const finSearchVal = ($('finSearch')?.value||'').toLowerCase().trim();
   const concessoesFiltradas = finSearchVal
-    ? concessoes.filter(c=>(c.nomeCliente||'').toLowerCase().includes(finSearchVal))
+    ? concessoes.filter(c=>{
+        const nomeConc = (c.nomeCliente||'').toLowerCase();
+        const cont = contracts.find(x=>x.id===c.contractId);
+        const nomeCont = (cont?.nome||'').toLowerCase();
+        return nomeConc.includes(finSearchVal) || nomeCont.includes(finSearchVal);
+      })
     : concessoes;
   // filtro meses
   const meses=new Set();
@@ -2858,7 +2863,7 @@ window.renderFinanceiro = function(){
 
   // coluna benefícios concedidos
   const concCard=$('finConcedidosCard');
-  if(concCard) concCard.innerHTML = concessoes.length ? concessoes.map(c=>{
+  if(concCard) concCard.innerHTML = concessoesFiltradas.length ? concessoesFiltradas.map(c=>{
     const parc=gerarParcelas(c);
     const cont=contracts.find(x=>x.id===c.contractId)||{};
     const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
@@ -2875,7 +2880,7 @@ window.renderFinanceiro = function(){
         ${proxNaoPago?`<br>Próx: ${proxNaoPago.dtCliente}`:''}
       </div>
     </div>`;
-  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma concessão registrada.</div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma concessão encontrada.</div>';
   const inadCard=$('finInadCard');
   if(inadCard) inadCard.innerHTML=inadimplentes.length?inadimplentes.map(i=>{
     const wLink=i.tel?`https://wa.me/55${i.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}`:'';
