@@ -962,8 +962,8 @@ function toast(msg){
 }
 function isGestora(){ return currentProfile?.role==='gestora'; }
 function canEdit(c){
-  if(isGestora()) return true;
-  return c.resp === currentUser.uid;
+  // todas podem editar, só gestora pode excluir
+  return true;
 }
 function initials(name){
   if(!name) return '??';
