@@ -1647,6 +1647,9 @@ window.renderKanban = function(){
             const parc = gerarParcelas(conc);
             return parc.some(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
           })();
+          // badge financeiro — só para concedidos
+          const faltaFinanceiro = c.etapa==='concedido' && !conc;
+          const financeiroOk = c.etapa==='concedido' && conc;
           return `<div class="kb-card${isBaixa?' perca':isIndeferido?' indeferido-card':isEncerrado?' encerrado-card':''}" onclick="openPanel('${c.id}')">
             <div class="kb-card-top">
               <span class="kb-card-name">${c.nome||'—'}</span>
@@ -1659,6 +1662,8 @@ window.renderKanban = function(){
               ${isEncerrado?`<span class="badge" style="background:#1A1A2E;color:#A0C4FF">✓ Encerrado</span>`:''}
               ${alertaProt?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">⏱ ${diasProtocolado(c)}d sem resposta INSS</div>`:''}
               ${temInadimplencia?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">💰 Honorário em atraso</div>`:''}
+              ${faltaFinanceiro?`<div class="doc-alert-tag" style="background:#FFF8E1;color:#856404;border-color:#F0D080">⚠ Falta registrar no financeiro</div>`:''}
+              ${financeiroOk?`<div class="doc-alert-tag" style="background:#EBF5ED;color:#27500A;border-color:#C0DD97">✓ Financeiro registrado</div>`:''}
               ${!isBaixa&&!isEncerrado?`<span>📅 DPP: ${c.dpp||'—'} · ${monthsToGo(c.dpp)}</span>`:''}
               ${!isBaixa&&!isEncerrado&&!isIndeferido?`<div class="prog-bar">
                 <span>Docs ${done}/${total}</span>
@@ -2030,6 +2035,8 @@ window.renderDashboard = function(){
   `;
 
   const alertas=[
+    ...ativos.filter(c=>c.etapa==='concedido'&&!concessoes.find(x=>x.contractId===c.id))
+      .map(c=>({col:'#856404',name:c.nome,sub:'💰 Benefício concedido — falta registrar no financeiro',id:c.id})),
     ...ativos.filter(c=>c.etapa==='nasceu').map(c=>({col:'#B83535',name:c.nome,sub:'Criança nasceu — protocolar urgente!',id:c.id})),
     ...protSemResposta.map(c=>({col:'#B83535',name:c.nome,sub:`⏱ ${diasProtocolado(c)} dias sem resposta INSS — diligenciar!`,id:c.id})),
     ...inadimplentes.map(c=>{
