@@ -2665,6 +2665,9 @@ function subscribeConcessoes(){
     concessoes=[];
     snap.forEach(d=>concessoes.push({id:d.id,...d.data()}));
     if($('view-financeiro')?.classList.contains('active')) renderFinanceiro();
+    // re-renderizar kanban e dashboard para atualizar badges de financeiro
+    renderKanban();
+    renderDashboard();
   });
 }
 
