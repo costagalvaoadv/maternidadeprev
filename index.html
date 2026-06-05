@@ -500,9 +500,11 @@ tr:hover td{background:var(--bg);cursor:pointer}
             </select>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Clique em qualquer barra para ver a lista filtrada</div>
-        <div class="chart-bars" id="chartBars"></div>
-        <div class="chart-legend" id="chartLegend"></div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Clique em qualquer barra para ver a lista filtrada · Passe o mouse para ver detalhes</div>
+        <div id="chartLegend" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px"></div>
+        <div style="position:relative;width:100%;height:320px">
+          <canvas id="chartBars" role="img" aria-label="Gráfico de barras — situação dos contratos"></canvas>
+        </div>
       </div>
 
       <!-- EXPLICAÇÃO DAS ETAPAS -->
@@ -2279,12 +2281,12 @@ window.renderList = function(){
 
 // ── GRÁFICO INTERATIVO ──
 const CHART_COLORS = ['#C94F6D','#1D5FA8','#3A7D44','#A0612A','#5B4BAD','#B83535','#27500A','#856404','#185FA5','#D4900A'];
+let chartInstance = null;
 
 window.renderGrafico = function(){
   const tipo = $('chartTipo')?.value||'etapas';
   const periodo = parseInt($('chartPeriodo')?.value)||0;
   let data = visibleContracts();
-  // filtrar por período de fechamento
   if(periodo>0){
     data = data.filter(c=>{
       if(!c.fechamento) return false;
@@ -2292,8 +2294,8 @@ window.renderGrafico = function(){
       return dias<=periodo;
     });
   }
-  let grupos = {};
 
+  let grupos = {};
   if(tipo==='etapas'){
     COLS.forEach(c=>{ grupos[c.label]=0; });
     data.forEach(c=>{ const lbl=colLabel(c.etapa); grupos[lbl]=(grupos[lbl]||0)+1; });
@@ -2312,33 +2314,112 @@ window.renderGrafico = function(){
   }
 
   const entries = Object.entries(grupos).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const maxVal = Math.max(...entries.map(([,v])=>v), 1);
-  const bars = $('chartBars');
+  const total = entries.reduce((s,[,v])=>s+v,0);
+  const labels = entries.map(([l])=>l);
+  const values = entries.map(([,v])=>v);
+  const colors = entries.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]);
+  const pcts = values.map(v=>total>0?Math.round(v/total*100):0);
+
+  // legenda customizada
   const legend = $('chartLegend');
-  if(!bars||!legend) return;
+  if(legend) legend.innerHTML = entries.map(([lbl,val],i)=>`
+    <span style="display:flex;align-items:center;gap:5px;cursor:pointer" onclick="${tipo==='etapas'?`filtrarLista('${COLS.find(c=>c.label===lbl)?.id||''}')`:`filtrarListaTipo('${lbl}')`}">
+      <span style="width:12px;height:12px;border-radius:3px;background:${CHART_COLORS[i%CHART_COLORS.length]};flex-shrink:0"></span>
+      <span style="color:var(--text2)">${lbl}: <strong style="color:var(--text)">${val}</strong> <span style="color:var(--text3)">(${pcts[i]}%)</span></span>
+    </span>`).join('');
 
-  bars.innerHTML = entries.map(([lbl,val],i)=>{
-    const pct = Math.round(val/maxVal*100);
-    const color = CHART_COLORS[i%CHART_COLORS.length];
-    const filtroParam = tipo==='etapas'
-      ? `filtrarLista('${COLS.find(c=>c.label===lbl)?.id||''}')`
-      : tipo==='tipo'
-      ? `filtrarListaTipo('${lbl}')`
-      : `filtrarListaResp('${lbl}')`;
-    return `<div class="chart-bar-wrap" onclick="${filtroParam}">
-      <div class="chart-bar-val">${val}</div>
-      <div class="chart-bar" style="height:${pct}%;background:${color}">
-        <div class="chart-tooltip">${lbl}: ${val} contrato${val!==1?'s':''}</div>
-      </div>
-      <div class="chart-bar-label">${lbl.length>12?lbl.slice(0,11)+'…':lbl}</div>
-    </div>`;
-  }).join('');
+  // destruir gráfico anterior
+  if(chartInstance){ chartInstance.destroy(); chartInstance=null; }
 
-  legend.innerHTML = entries.map(([lbl,val],i)=>`
-    <div class="chart-leg-item" onclick="${tipo==='etapas'?`filtrarLista('${COLS.find(c=>c.label===lbl)?.id||''}')`:''}">
-      <div class="chart-leg-dot" style="background:${CHART_COLORS[i%CHART_COLORS.length]}"></div>
-      <span>${lbl} (${val})</span>
-    </div>`).join('');
+  const canvas = $('chartBars');
+  if(!canvas) return;
+
+  if(typeof Chart === 'undefined'){
+    // Chart.js ainda não carregou — tentar novamente
+    setTimeout(renderGrafico, 300);
+    return;
+  }
+
+  chartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Contratos',
+        data: values,
+        backgroundColor: colors.map(c=>c+'CC'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx=>{
+              const val = ctx.raw;
+              const pct = total>0?Math.round(val/total*100):0;
+              return ` ${val} contrato${val!==1?'s':''} (${pct}%)`;
+            }
+          },
+          backgroundColor: '#1A1814',
+          titleColor: '#fff',
+          bodyColor: '#E2DDD5',
+          padding: 10,
+          cornerRadius: 8,
+        },
+        datalabels: { display: false },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#6B6560',
+            font: { size: 11 },
+            maxRotation: 35,
+            autoSkip: false,
+            callback: function(val, idx){
+              const lbl = labels[idx]||'';
+              return lbl.length>12 ? lbl.slice(0,11)+'…' : lbl;
+            }
+          },
+          border: { display: false }
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: '#E2DDD520' },
+          ticks: {
+            color: '#6B6560',
+            font: { size: 11 },
+            stepSize: 1,
+            callback: v => Number.isInteger(v)?v:''
+          },
+          border: { display: false }
+        }
+      },
+      onClick: (_, elements)=>{
+        if(!elements.length) return;
+        const lbl = labels[elements[0].index];
+        if(tipo==='etapas'){
+          const col = COLS.find(c=>c.label===lbl);
+          if(col) filtrarLista(col.id);
+        } else if(tipo==='tipo'){
+          filtrarListaTipo(lbl);
+        } else {
+          filtrarListaResp(lbl);
+        }
+      },
+      onHover: (event, elements)=>{
+        event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+      }
+    }
+  });
 };
 
 window.filtrarListaTipo = function(lbl){
@@ -3001,5 +3082,6 @@ window.exportFinanceiroPDF=function(){
 // Iniciar subscriptions ao fazer login — já chamado no onAuthStateChanged
 
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 </body>
 </html>
