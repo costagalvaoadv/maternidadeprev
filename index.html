@@ -1554,6 +1554,30 @@ window.openConcessaoModal = function(id){
   $('concessaoModalOverlay').classList.add('open');
 };
 
+window.editarDataConcessao = async function(id, dataAtual){
+  const nova = await pedirDataConcessao(dataAtual||new Date().toISOString().split('T')[0]);
+  if(nova===null) return;
+  await updateDoc(doc(db,'contracts',id),{dataConcedido:nova});
+  toast('Data de concessão atualizada ✓');
+  openPanel(id);
+};
+
+// calcular prazo médio entre concessão e 1ª parcela
+function calcularPrazoMedio(){
+  const prazos = [];
+  contracts.filter(c=>c.dataConcedido&&c.etapa==='concedido').forEach(c=>{
+    const conc = concessoes.find(x=>x.contractId===c.id);
+    if(!conc) return;
+    const parc = gerarParcelas(conc);
+    const primeira = parc[0];
+    if(!primeira?.dtCliente) return;
+    const dias = Math.round((new Date(primeira.dtCliente+'T00:00:00')-new Date(c.dataConcedido+'T00:00:00'))/864e5);
+    if(dias>=0 && dias<=365) prazos.push(dias);
+  });
+  if(prazos.length===0) return null;
+  return { media: Math.round(prazos.reduce((s,v)=>s+v,0)/prazos.length), total: prazos.length };
+}
+
 window.closeConcessaoModal = function(){
   const btn = document.querySelector('#concessaoModalOverlay .btn-save');
   if(btn){ btn.disabled=false; btn.textContent='Salvar'; }
@@ -1734,6 +1758,7 @@ window.openPanel = function(id){
         </div>`:''}
         ${c.drive?`<div style="margin-top:8px"><a href="${c.drive}" target="_blank" style="font-size:12px;color:var(--blue)">📁 Abrir Google Drive</a></div>`:''}
         ${c.dataProtocolo?`<div style="margin-top:6px;font-size:11px;color:var(--text2)">📅 Protocolado em: <strong>${c.dataProtocolo}</strong>${alertaProtocolo(c)?` <span style="color:#B83535;font-weight:600">· ${diasProtocolado(c)} dias sem resposta!</span>`:''}</div>`:''}
+        ${c.etapa==='concedido'?`<div style="margin-top:6px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px">✅ Concedido em: <strong>${c.dataConcedido||'não informado'}</strong> <button class="btn-sm" style="font-size:10px;padding:2px 7px" onclick="editarDataConcessao('${c.id}','${c.dataConcedido||''}')">✏️ editar</button></div>`:''}
         ${c.dataIndeferimento?`<div style="margin-top:4px;font-size:11px;color:#FFAD5C">⚖ Indeferido em: <strong>${c.dataIndeferimento}</strong> — encaminhar para recurso</div>`:''}
         ${c.dataEncerramento?`<div style="margin-top:4px;font-size:11px;color:#A0C4FF">✓ Encerrado em: <strong>${c.dataEncerramento}</strong></div>`:''}
         ${c.obs?`<div style="margin-top:8px;font-size:12px;color:var(--text2);background:var(--bg);padding:8px 10px;border-radius:8px;line-height:1.5">${c.obs}</div>`:''}
@@ -1827,11 +1852,49 @@ window.moveEtapa = async function(id, etapa){
   if(etapa==='protocolado' && !c.dataProtocolo) update.dataProtocolo=hoje;
   if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
   if(etapa==='encerrado') update.dataEncerramento=hoje;
+  // ao mover para concedido, pedir data da decisão do INSS
+  if(etapa==='concedido'){
+    update.dataConcedido = hoje;
+    // abrir mini modal para confirmar/ajustar a data
+    const dataDecisao = await pedirDataConcessao(hoje);
+    if(dataDecisao === null) return; // cancelou
+    update.dataConcedido = dataDecisao;
+  }
   await updateDoc(doc(db,'contracts',id),update);
   await registrarAudit('mover', id, c.nome, `Movido para: ${colLabel(etapa)}`);
   toast('Etapa atualizada');
   openPanel(id);
 };
+
+// mini modal para data da concessão
+function pedirDataConcessao(dataDefault){
+  return new Promise(resolve=>{
+    // criar overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML=`
+      <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px 28px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">📋 Data da decisão do INSS</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Informe quando o INSS concedeu o benefício. Essa data será usada para calcular o prazo médio até o 1º pagamento.</div>
+        <label style="font-size:12px;font-weight:500;display:block;margin-bottom:6px">Data da concessão</label>
+        <input type="date" id="inputDataConcessao" value="${dataDefault}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button id="btnCancelarConc" class="btn-sm">Cancelar</button>
+          <button id="btnConfirmarConc" class="btn-save" style="padding:8px 16px">Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('btnConfirmarConc').onclick=()=>{
+      const val = document.getElementById('inputDataConcessao').value;
+      document.body.removeChild(overlay);
+      resolve(val||dataDefault);
+    };
+    document.getElementById('btnCancelarConc').onclick=()=>{
+      document.body.removeChild(overlay);
+      resolve(null);
+    };
+  });
+}
 
 window.saveObs = async function(id){
   const c=contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
@@ -2821,15 +2884,21 @@ window.renderFinanceiro = function(){
   const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
 
   // métricas — inadimplentes unificado com a resgatar
+  const prazoMedio = calcularPrazoMedio();
   $('finMetrics').innerHTML=`
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver benefícios">
-      <div class="metric-val">${concessoes.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
+      <div class="metric-val">${concessoesFiltradas.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
       <div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finProxCard')">
       <div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
       <div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
+    <div class="metric-card" style="${prazoMedio?'border:1px solid #C0DD97;background:#EBF5ED':''}">
+      <div class="metric-val" style="font-size:${prazoMedio?'28px':'18px'};color:${prazoMedio?'#27500A':'var(--text2)'}">${prazoMedio?prazoMedio.media+'d':'—'}</div>
+      <div class="metric-lbl">Prazo médio concessão → 1º pgto</div>
+      ${prazoMedio?`<div style="font-size:10px;color:#3A7D44;margin-top:3px">Base: ${prazoMedio.total} caso${prazoMedio.total!==1?'s':''}</div>`:'<div style="font-size:10px;color:var(--text3);margin-top:3px">Preencha datas de concessão</div>'}
+    </div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" style="border:1px solid #F7C1C1;background:#FFF5F5">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div class="metric-val" style="color:var(--red);margin:0">${inadimplentes.length}</div>
