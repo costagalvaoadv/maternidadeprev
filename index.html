@@ -2114,7 +2114,7 @@ window.renderDashboard = function(){
       .map(c=>({col:'#B83535',name:c.nome,sub:`⚠ Parto previsto há ${Math.abs(daysUntil(c.dpp))} dias — mover para "Nasceu · Protocolar"`,id:c.id})),
     ...ativos.filter(c=>daysUntil(c.dpp)<=14&&daysUntil(c.dpp)>=-7&&!['nasceu','protocolado','concedido','indeferido','encerrado','baixa'].includes(c.etapa))
       .map(c=>({col:'#B83535',name:c.nome,sub:`Parto em ${daysUntil(c.dpp)} dias — verificar situação`,id:c.id,tel:c.tel,whats:'parto'})),
-    ...ativos.filter(c=>c.guia_status==='enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
+    ...ativos.filter(c=>c.guia_status==='enviada'&&c.etapa==='guia-enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
     ...guiaPend.filter(c=>c.etapa==='fechado').map(c=>({col:'#A0612A',name:c.nome,sub:'Contrato fechado — guia não gerada',id:c.id})),
     ...pendDocs.map(c=>({col:'#856404',name:c.nome,sub:'⚠ Documento imprescindível pendente',id:c.id})),
     ...indeferidos.map(c=>({col:'#FFAD5C',name:c.nome,sub:`⚖ Indeferido em ${c.dataIndeferimento||'—'} — passar para operacional`,id:c.id})),
