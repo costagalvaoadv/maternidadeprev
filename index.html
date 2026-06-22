@@ -1849,7 +1849,11 @@ window.moveEtapa = async function(id, etapa){
   const c=contracts.find(x=>x.id===id); if(!c||!canEdit(c)) return;
   const update={etapa};
   const hoje=new Date().toISOString().split('T')[0];
-  if(etapa==='protocolado' && !c.dataProtocolo) update.dataProtocolo=hoje;
+  if(etapa==='protocolado'){
+    const dataProt = await pedirDataProtocolo(hoje);
+    if(dataProt === null) return; // cancelou
+    update.dataProtocolo = dataProt;
+  }
   if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
   if(etapa==='encerrado') update.dataEncerramento=hoje;
   // ao mover para concedido, pedir data da decisão do INSS
@@ -1865,6 +1869,35 @@ window.moveEtapa = async function(id, etapa){
   toast('Etapa atualizada');
   openPanel(id);
 };
+
+// mini modal para data do protocolo
+function pedirDataProtocolo(dataDefault){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML=`
+      <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px 28px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">📅 Data do protocolo no INSS</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Informe a data em que o pedido foi protocolado. Essa data é usada para controlar o prazo de resposta do INSS.</div>
+        <label style="font-size:12px;font-weight:500;display:block;margin-bottom:6px">Data do protocolo</label>
+        <input type="date" id="inputDataProtocolo" value="${dataDefault}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button id="btnCancelarProt" class="btn-sm">Cancelar</button>
+          <button id="btnConfirmarProt" class="btn-save" style="padding:8px 16px">Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('btnConfirmarProt').onclick=()=>{
+      const val = document.getElementById('inputDataProtocolo').value;
+      document.body.removeChild(overlay);
+      resolve(val||dataDefault);
+    };
+    document.getElementById('btnCancelarProt').onclick=()=>{
+      document.body.removeChild(overlay);
+      resolve(null);
+    };
+  });
+}
 
 // mini modal para data da concessão
 function pedirDataConcessao(dataDefault){
@@ -2112,9 +2145,9 @@ window.renderDashboard = function(){
     }),
     ...ativos.filter(c=>daysUntil(c.dpp)<-7&&!['nasceu','protocolado','concedido','indeferido','encerrado','baixa'].includes(c.etapa))
       .map(c=>({col:'#B83535',name:c.nome,sub:`⚠ Parto previsto há ${Math.abs(daysUntil(c.dpp))} dias — mover para "Nasceu · Protocolar"`,id:c.id})),
-    ...ativos.filter(c=>daysUntil(c.dpp)<=14&&daysUntil(c.dpp)>=-7&&!['nasceu','protocolado','concedido','indeferido','encerrado','baixa'].includes(c.etapa))
+    ...ativos.filter(c=>daysUntil(c.dpp)<=14&&daysUntil(c.dpp)>=-7&&c.etapa!=='nasceu'&&c.etapa!=='protocolado')
       .map(c=>({col:'#B83535',name:c.nome,sub:`Parto em ${daysUntil(c.dpp)} dias — verificar situação`,id:c.id,tel:c.tel,whats:'parto'})),
-    ...ativos.filter(c=>c.guia_status==='enviada'&&c.etapa==='guia-enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
+    ...ativos.filter(c=>c.guia_status==='enviada').map(c=>({col:'#A0612A',name:c.nome,sub:'Guia enviada — aguard. confirmação pagamento',id:c.id})),
     ...guiaPend.filter(c=>c.etapa==='fechado').map(c=>({col:'#A0612A',name:c.nome,sub:'Contrato fechado — guia não gerada',id:c.id})),
     ...pendDocs.map(c=>({col:'#856404',name:c.nome,sub:'⚠ Documento imprescindível pendente',id:c.id})),
     ...indeferidos.map(c=>({col:'#FFAD5C',name:c.nome,sub:`⚖ Indeferido em ${c.dataIndeferimento||'—'} — passar para operacional`,id:c.id})),
