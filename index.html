@@ -2613,11 +2613,15 @@ window.renderRelatorios = function(){
     const qtd = ativaFiltrada.filter(c=>c.etapa===e.id).length;
     const pct = Math.round(qtd/totalAtiva*100);
     const borda = e.urgente ? `border:2px solid ${e.cor};box-shadow:0 0 0 3px ${e.cor}22` : `border:1px solid var(--border)`;
-    return `<div style="background:var(--surface);border-radius:var(--radius-lg);padding:16px 14px;${borda};text-align:center">
+    return `<div onclick="filtrarLista('${e.id}')"
+      style="background:var(--surface);border-radius:var(--radius-lg);padding:16px 14px;${borda};text-align:center;cursor:pointer;transition:box-shadow .15s,border-color .15s,transform .12s"
+      onmouseover="this.style.boxShadow='var(--shadow)';this.style.borderColor='${e.cor}';this.style.transform='translateY(-2px)'"
+      onmouseout="this.style.boxShadow='${e.urgente?`0 0 0 3px ${e.cor}22`:''}';this.style.borderColor='${e.urgente?e.cor:'var(--border)'}';this.style.transform=''">
       <div style="font-size:36px;font-weight:800;color:${e.cor};line-height:1">${qtd}</div>
       <div style="font-size:11px;font-weight:600;color:var(--text);margin:6px 0 4px;line-height:1.3">${e.label}</div>
       <div style="font-size:11px;color:var(--text2)">${pct}% da carteira</div>
       ${e.urgente&&qtd>0?`<div style="font-size:10px;background:#B83535;color:#fff;border-radius:6px;padding:2px 6px;margin-top:6px;font-weight:700">AÇÃO IMEDIATA</div>`:''}
+      <div style="font-size:10px;color:${e.cor};margin-top:6px;opacity:.7">clique para ver lista →</div>
     </div>`;
   }).join('');
 
@@ -2670,27 +2674,38 @@ window.renderRelatorios = function(){
   }
 
   // ── BLOCO 3: RESUMO EXECUTIVO ──
-  const concedidos = all.filter(c=>['concedido','encerrado'].includes(c.etapa)).length;
-  const baixas     = all.filter(c=>c.etapa==='baixa').length;
-  const taxaConc   = concedidos+baixas>0 ? Math.round(concedidos/(concedidos+baixas)*100) : 0;
-  const encerrados = all.filter(c=>c.etapa==='encerrado').length;
-  const novos30    = all.filter(c=>{
+  const concedidos   = all.filter(c=>['concedido','encerrado'].includes(c.etapa)).length;
+  const encerrados   = all.filter(c=>c.etapa==='encerrado').length;
+  const indeferidos  = all.filter(c=>c.etapa==='indeferido').length;
+  const baixas       = all.filter(c=>c.etapa==='baixa').length;
+  const totalJurid   = concedidos + indeferidos;
+  const taxaExito    = totalJurid>0 ? Math.round(concedidos/totalJurid*100) : 0;
+  const totalContr   = all.length;
+  const taxaEvasao   = totalContr>0 ? Math.round(baixas/totalContr*100) : 0;
+  const novos30      = all.filter(c=>{
     if(!c.createdAt?.toDate) return false;
     return c.createdAt.toDate() >= new Date(Date.now()-30*864e5);
   }).length;
 
+  const metricas = [
+    {icon:'🏆', val:`${taxaExito}%`,       label:'Taxa de Êxito Jurídico',    sub:`${concedidos} concedidos · ${indeferidos} indeferidos`, cor:'#3A7D44', onclick:"filtrarLista('concedido')"},
+    {icon:'📉', val:`${taxaEvasao}%`,      label:'Taxa de Evasão Comercial',  sub:`${baixas} baixas de ${totalContr} contratos`,           cor:'#888',    onclick:"filtrarLista('baixa')"},
+    {icon:'✅', val:encerrados,            label:'Processos encerrados',      sub:'Honorários 100% quitados',                              cor:'#1D5FA8', onclick:"filtrarLista('encerrado')"},
+    {icon:'📋', val:ativaFiltrada.length, label:'Contratos em tramitação',   sub:'Exigem ação da equipe',                                 cor:'#A0612A', onclick:"filtrarLista('fechado')"},
+    {icon:'🆕', val:novos30,              label:'Novos contratos (30 dias)', sub:'Cadastrados no último mês',                             cor:'#C94F6D', onclick:''},
+  ];
+
   const resumoEl = $('relResumoExec');
-  if(resumoEl) resumoEl.innerHTML = [
-    {icon:'🏆', val:`${taxaConc}%`,        label:'Taxa de concessão',        sub:`${concedidos} concedidos · ${baixas} baixas`,  cor:'#3A7D44'},
-    {icon:'✅', val:encerrados,             label:'Processos encerrados',     sub:'Honorários 100% quitados',                     cor:'#1D5FA8'},
-    {icon:'📋', val:ativaFiltrada.length,  label:'Contratos em tramitação',  sub:'Exigem ação da equipe',                        cor:'#A0612A'},
-    {icon:'🆕', val:novos30,               label:'Novos contratos (30 dias)',sub:'Cadastrados no último mês',                    cor:'#C94F6D'},
-  ].map(m=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 16px;text-align:center">
-    <div style="font-size:22px;margin-bottom:4px">${m.icon}</div>
-    <div style="font-size:32px;font-weight:800;color:${m.cor};line-height:1">${m.val}</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text);margin:6px 0 3px">${m.label}</div>
-    <div style="font-size:11px;color:var(--text2)">${m.sub}</div>
-  </div>`).join('');
+  if(resumoEl) resumoEl.innerHTML = metricas.map(m=>`
+    <div onclick="${m.onclick}" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 16px;text-align:center;cursor:${m.onclick?'pointer':'default'};transition:box-shadow .15s,border-color .15s,transform .12s"
+      onmouseover="if('${m.onclick}'){this.style.boxShadow='var(--shadow)';this.style.borderColor='${m.cor}';this.style.transform='translateY(-2px)'}"
+      onmouseout="this.style.boxShadow='';this.style.borderColor='var(--border)';this.style.transform=''">
+      <div style="font-size:22px;margin-bottom:4px">${m.icon}</div>
+      <div style="font-size:32px;font-weight:800;color:${m.cor};line-height:1">${m.val}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text);margin:6px 0 3px">${m.label}</div>
+      <div style="font-size:11px;color:var(--text2)">${m.sub}</div>
+      ${m.onclick?`<div style="font-size:10px;color:${m.cor};margin-top:6px;opacity:.7">clique para ver lista →</div>`:''}
+    </div>`).join('');
 
   // nascimentos 90 dias (mantido)
   const nasc90 = all.filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido'&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=90)
