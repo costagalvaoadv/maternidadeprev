@@ -403,6 +403,15 @@ tr:hover td{background:var(--bg);cursor:pointer}
     <div class="dash-wrap full">
       <div id="metricsPersonal" style="display:none"></div>
       <div class="metrics-row" id="metricsRow"></div>
+      <!-- CENTRAL DE CONTATOS DA SEMANA — visível apenas para gestora -->
+      <div id="centralContatosWrap" style="display:none;margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <div style="font-size:13px;font-weight:700;color:var(--text);letter-spacing:-.2px">📞 Central de Contatos da Semana</div>
+          <button onclick="toggleCentralContatos()" id="btnToggleCentral" style="font-size:11px;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text2);cursor:pointer">▼ Recolher</button>
+        </div>
+        <div id="centralContatosBody" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px"></div>
+      </div>
+
       <!-- colunas lado a lado -->
       <div class="dash-cols">
         <div class="dash-col">
@@ -1885,10 +1894,16 @@ window.moveEtapa = async function(id, etapa){
   if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
   if(etapa==='encerrado') update.dataEncerramento=hoje;
   if(etapa==='baixa' && !c.dataBaixa) update.dataBaixa=hoje;
+  // ao mover para guia-enviada, pedir data de envio e vencimento
+  if(etapa==='guia-enviada'){
+    const dadosGuia = await pedirDadosGuia(hoje);
+    if(dadosGuia === null) return; // cancelou
+    update.dataEnvioGuia = dadosGuia.envio;
+    update.dataVencGuia  = dadosGuia.venc;
+  }
   // ao mover para concedido, pedir data da decisão do INSS
   if(etapa==='concedido'){
     update.dataConcedido = hoje;
-    // abrir mini modal para confirmar/ajustar a data
     const dataDecisao = await pedirDataConcessao(hoje);
     if(dataDecisao === null) return; // cancelou
     update.dataConcedido = dataDecisao;
@@ -1952,6 +1967,37 @@ function pedirDataConcessao(dataDefault){
       resolve(val||dataDefault);
     };
     document.getElementById('btnCancelarConc').onclick=()=>{
+      document.body.removeChild(overlay);
+      resolve(null);
+    };
+  });
+}
+
+function pedirDadosGuia(dataDefault){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML=`
+      <div style="background:var(--surface);border-radius:var(--radius-lg);padding:24px 28px;width:360px;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">💳 Dados da Guia</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Registre a data de envio e o vencimento do boleto para acompanhamento.</div>
+        <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Data de envio da guia</label>
+        <input type="date" id="inputEnvioGuia" value="${dataDefault}" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box;margin-bottom:12px">
+        <label style="font-size:12px;font-weight:500;display:block;margin-bottom:4px">Vencimento do boleto</label>
+        <input type="date" id="inputVencGuia" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--bg);color:var(--text);box-sizing:border-box">
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+          <button id="btnCancelarGuia" class="btn-sm">Cancelar</button>
+          <button id="btnConfirmarGuia" class="btn-save" style="padding:8px 16px">Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('btnConfirmarGuia').onclick=()=>{
+      const envio = document.getElementById('inputEnvioGuia').value;
+      const venc  = document.getElementById('inputVencGuia').value;
+      document.body.removeChild(overlay);
+      resolve({envio: envio||dataDefault, venc: venc||''});
+    };
+    document.getElementById('btnCancelarGuia').onclick=()=>{
       document.body.removeChild(overlay);
       resolve(null);
     };
@@ -2094,8 +2140,149 @@ window.saveContract = async function(){
 };
 
 // ── DASHBOARD ──
+// ── CENTRAL DE CONTATOS DA SEMANA ──
+function calcMesGestacional(dpp){
+  if(!dpp) return null;
+  const hoje = new Date();
+  const dataParto = new Date(dpp+'T00:00:00');
+  const diasRestantes = Math.round((dataParto - hoje) / 864e5);
+  if(diasRestantes < -30 || diasRestantes > 280) return null;
+  const mesGest = Math.round(10 - (diasRestantes / 28));
+  return Math.min(10, Math.max(1, mesGest));
+}
+
+window.toggleCentralContatos = function(){
+  const body = document.getElementById('centralContatosBody');
+  const btn  = document.getElementById('btnToggleCentral');
+  if(!body || !btn) return;
+  if(body.style.display==='none'){ body.style.display='grid'; btn.textContent='▼ Recolher'; }
+  else { body.style.display='none'; btn.textContent='▶ Expandir'; }
+};
+
+function renderCentralContatos(all){
+  const wrap = document.getElementById('centralContatosWrap');
+  const body = document.getElementById('centralContatosBody');
+  if(!wrap || !body || !isGestora()) return;
+  wrap.style.display='block';
+
+  const hoje = new Date();
+  const hojeStr = hoje.toISOString().split('T')[0];
+
+  function wLink(c, msg){
+    const tel = (c.tel||'').replace(/\D/g,'');
+    if(!tel) return '';
+    return `<a href="https://wa.me/55${tel}?text=${encodeURIComponent(msg)}" target="_blank"
+      style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`;
+  }
+
+  function grupoCard(icone, titulo, cor, itens){
+    if(!itens.length) return '';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${cor};border-radius:var(--radius-lg);padding:14px 14px 10px">
+      <div style="font-size:12px;font-weight:700;color:${cor};margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${icone} ${titulo} <span style="font-weight:400;color:var(--text2)">(${itens.length})</span></div>
+      ${itens.map(i=>`<div style="padding:7px 0;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${i.id}')">${i.nome}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.sub}</div>
+        </div>
+        <div style="flex-shrink:0">${i.wlink}</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // ── Grupo 1: Nasceu · Protocolar ──
+  const nasceu = all.filter(c=>c.etapa==='nasceu').map(c=>({
+    id:c.id, nome:c.nome,
+    sub:`DPP: ${c.dpp||'—'} · Avisar operacional + comunicar cliente`,
+    wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! O bebê já nasceu? Precisamos que nos avise assim que possível para darmos início ao protocolo do seu benefício. 😊`)
+  }));
+
+  // ── Grupo 2: Enviar guia (parto em 30–60 dias sem guia) ──
+  const enviarGuia = all.filter(c=>{
+    if(['baixa','encerrado','concedido','nasceu','protocolado','guia-enviada','guia-paga','indeferido'].includes(c.etapa)) return false;
+    const d = daysUntil(c.dpp);
+    return d>=0 && d<=60 && c.tipo!=='qualidade';
+  }).map(c=>({
+    id:c.id, nome:c.nome,
+    sub:`Parto em ${daysUntil(c.dpp)} dias · DPP: ${c.dpp||'—'}`,
+    wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Sua guia para solicitação do salário maternidade está pronta. Vou te enviar agora para que efetue o pagamento o quanto antes. Qualquer dúvida estou à disposição! 😊`)
+  }));
+
+  // ── Grupo 3: Cobrar pagamento da guia ──
+  const cobrarGuia = all.filter(c=>{
+    if(c.etapa!=='guia-enviada') return false;
+    if(!c.dataVencGuia) return true; // sem vencimento registrado: sempre mostrar
+    return c.dataVencGuia >= hojeStr; // vencimento futuro ou hoje: mostrar para acompanhar
+  }).map(c=>{
+    const diasVenc = c.dataVencGuia ? Math.round((new Date(c.dataVencGuia+'T00:00:00')-hoje)/864e5) : null;
+    const vencTxt  = diasVenc===null ? 'Vencimento não registrado' : diasVenc<0 ? `⚠ Vencida há ${Math.abs(diasVenc)} dias` : diasVenc===0 ? '🔴 Vence hoje' : `Vence em ${diasVenc} dias (${c.dataVencGuia})`;
+    return {
+      id:c.id, nome:c.nome, sub:vencTxt,
+      wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Passando para lembrar que a guia do seu salário maternidade ${diasVenc!==null&&diasVenc<=0?'já venceu':'vence em breve'}. Já conseguiu efetuar o pagamento? Qualquer dúvida estou aqui! 😊`)
+    };
+  }).sort((a,b)=>{
+    const da = a.id && all.find(x=>x.id===a.id)?.dataVencGuia||'9999';
+    const db2 = b.id && all.find(x=>x.id===b.id)?.dataVencGuia||'9999';
+    return da.localeCompare(db2);
+  });
+
+  // ── Grupo 4: Cobrar honorário ──
+  const inadimplentes = all.filter(c=>{
+    const conc = concessoes.find(x=>x.contractId===c.id);
+    if(!conc) return false;
+    const parc = gerarParcelas(conc);
+    return parc.some(p=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente)<-7);
+  }).map(c=>{
+    const conc = concessoes.find(x=>x.contractId===c.id);
+    const parc = gerarParcelas(conc);
+    const atrasadas = parc.filter(p=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente)<-7);
+    return {
+      id:c.id, nome:c.nome,
+      sub:`${atrasadas.length} parcela(s) em atraso · desde ${atrasadas[0]?.dtCliente||'—'}`,
+      wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)
+    };
+  });
+
+  // ── Grupo 5: Mensagem semanal por mês gestacional ──
+  const gravidas = all.filter(c=>!['baixa','encerrado','concedido','nasceu','protocolado','indeferido'].includes(c.etapa) && c.dpp);
+  const porMes = {};
+  gravidas.forEach(c=>{
+    const mes = calcMesGestacional(c.dpp);
+    if(!mes) return;
+    if(!porMes[mes]) porMes[mes]=[];
+    porMes[mes].push(c);
+  });
+  const gruposMes = Object.keys(porMes).sort((a,b)=>b-a).map(mes=>{
+    const lista = porMes[mes];
+    const urgencia = mes>=9?'🔴':mes>=7?'🟠':mes>=5?'🟡':'🟢';
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${mes>=9?'#B83535':mes>=7?'#A0612A':mes>=5?'#856404':'#3A7D44'};border-radius:var(--radius-lg);padding:14px 14px 10px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${urgencia} ${mes}º Mês Gestacional <span style="font-weight:400;color:var(--text2)">(${lista.length})</span></div>
+      ${lista.map(c=>{
+        const tel=(c.tel||'').replace(/\D/g,'');
+        const wl=tel?`<a href="https://wa.me/55${tel}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`:'';
+        return `<div style="padding:7px 0;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${c.id}')">${c.nome}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">DPP: ${c.dpp} · ${daysUntil(c.dpp)} dias</div>
+          </div>
+          <div style="flex-shrink:0">${wl}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  body.innerHTML =
+    grupoCard('🚨','Nasceu · Protocolar','#B83535', nasceu) +
+    grupoCard('📋','Guia para enviar','#1D5FA8', enviarGuia) +
+    grupoCard('💳','Cobrar pagamento da guia','#5B4BAD', cobrarGuia) +
+    grupoCard('💰','Cobrar honorário','#A0612A', inadimplentes) +
+    (gruposMes || '<div style="font-size:12px;color:var(--text2);padding:8px">Nenhuma gestante ativa no momento.</div>');
+}
+
 window.renderDashboard = function(){
   const data = visibleContracts();
+
+  // Central de Contatos da Semana (apenas gestora)
+  renderCentralContatos(data);
 
   // métricas pessoais (apenas contratos da usuária logada)
   const meuId = currentUser.uid;
