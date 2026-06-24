@@ -88,8 +88,9 @@ input,select,textarea{font-family:'DM Sans',sans-serif}
 .kb-col{min-width:200px;max-width:200px;flex-shrink:0}
 .kb-col-head{font-size:11px;font-weight:600;padding:6px 10px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;letter-spacing:.02em;text-transform:uppercase}
 .kb-col-body{display:flex;flex-direction:column;gap:7px;max-height:calc(100vh - 230px);overflow-y:auto;padding-right:2px}
-.kb-col-body::-webkit-scrollbar{width:3px}
-.kb-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.kb-col-body::-webkit-scrollbar{width:7px}
+.kb-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.kb-col-body::-webkit-scrollbar-track{background:var(--surface2);border-radius:4px}
 .kb-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:11px;cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .kb-card:hover{box-shadow:var(--shadow);border-color:var(--border2)}
 .kb-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
@@ -211,7 +212,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
 .role-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:var(--accent-bg);color:var(--accent)}
 
 .kb-card.indeferido-card{border-color:#FFAD5C;background:#FFF8F0}
-.kb-card.encerrado-card{border-color:#A0C4FF;background:#0D0D1A;opacity:.8}
+.kb-card.encerrado-card{border-color:#A0C4FF;background:#EEF4FF;opacity:.9}
 .fin-conc-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 10px;margin-bottom:5px;cursor:pointer;transition:border-color .15s}
 .fin-conc-card:hover{border-color:var(--border2)}
 .fin-conc-nome{font-size:12px;font-weight:600;margin-bottom:3px}
@@ -244,8 +245,9 @@ tr:hover td{background:var(--bg);cursor:pointer}
 .dash-col{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;min-width:0}
 .dash-col-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface2)}
 .dash-col-body{padding:6px 10px;max-height:460px;overflow-y:auto;font-size:12px}
-.dash-col-body::-webkit-scrollbar{width:3px}
-.dash-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.dash-col-body::-webkit-scrollbar{width:7px}
+.dash-col-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.dash-col-body::-webkit-scrollbar-track{background:var(--surface2);border-radius:4px}
 .dash-col-body .alert-item{padding:7px 0;display:flex;align-items:flex-start;gap:7px;border-bottom:0.5px solid var(--border)}
 .dash-col-body .alert-item:last-child{border-bottom:none}
 .dash-col-body .alert-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
@@ -480,31 +482,57 @@ tr:hover td{background:var(--bg);cursor:pointer}
         </div>
       </div>
 
-      <!-- GRÁFICO GERENCIAL -->
-      <div class="chart-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
-          <div class="chart-title" style="margin-bottom:0">📊 Painel visual — situação dos contratos</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <select id="chartTipo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
-              <option value="etapas">Por etapa</option>
-              <option value="tipo">Por tipo previdenciário</option>
-              <option value="resp">Por responsável</option>
-            </select>
-            <select id="chartPeriodo" onchange="renderGrafico()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
-              <option value="0">Todos os períodos</option>
-              <option value="30">Últimos 30 dias</option>
-              <option value="60">Últimos 60 dias</option>
-              <option value="90">Últimos 90 dias</option>
-              <option value="180">Últimos 180 dias</option>
-              <option value="365">Último ano</option>
-            </select>
+      <!-- BLOCO 1: CARTEIRA ATIVA -->
+      <div class="chart-wrap" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="chart-title" style="margin-bottom:2px">⚡ Carteira Ativa — volume de trabalho atual</div>
+            <div style="font-size:11px;color:var(--text2)">Contratos que exigem ação da equipe · filtrado por data de cadastro</div>
           </div>
+          <select id="relPeriodoAtiva" onchange="renderRelatorios()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+            <option value="0">Todos os períodos</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="60">Últimos 60 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="180">Últimos 180 dias</option>
+            <option value="365">Último ano</option>
+          </select>
         </div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Clique em qualquer barra para ver a lista filtrada · Passe o mouse para ver detalhes</div>
-        <div id="chartLegend" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px"></div>
-        <div style="position:relative;width:100%;height:320px">
-          <canvas id="chartBars" role="img" aria-label="Gráfico de barras — situação dos contratos"></canvas>
+        <div id="relCarteiraAtiva" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px"></div>
+      </div>
+
+      <!-- BLOCO 2: HISTÓRICO / RESULTADOS -->
+      <div class="chart-wrap" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="chart-title" style="margin-bottom:2px">📈 Histórico de Resultados — por mês</div>
+            <div style="font-size:11px;color:var(--text2)">Filtrado pela data de mudança de etapa (concessão, encerramento ou baixa)</div>
+          </div>
+          <select id="relPeriodoHist" onchange="renderRelatorios()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+            <option value="6">Últimos 6 meses</option>
+            <option value="12">Últimos 12 meses</option>
+            <option value="24">Últimos 24 meses</option>
+            <option value="0">Todos</option>
+          </select>
         </div>
+        <div id="relHistLegend" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:12px"></div>
+        <div style="position:relative;width:100%;height:280px">
+          <canvas id="relHistChart" role="img" aria-label="Gráfico histórico de resultados"></canvas>
+        </div>
+      </div>
+
+      <!-- BLOCO 3: RESUMO EXECUTIVO -->
+      <div class="chart-wrap" style="margin-bottom:20px">
+        <div class="chart-title" style="margin-bottom:12px">🎯 Resumo Executivo</div>
+        <div id="relResumoExec" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px"></div>
+      </div>
+
+      <!-- canvas antigo mantido oculto para não quebrar renderGrafico() -->
+      <div style="display:none">
+        <canvas id="chartBars"></canvas>
+        <div id="chartLegend"></div>
+        <select id="chartTipo"></select>
+        <select id="chartPeriodo"></select>
       </div>
 
       <!-- EXPLICAÇÃO DAS ETAPAS -->
@@ -1856,6 +1884,7 @@ window.moveEtapa = async function(id, etapa){
   }
   if(etapa==='indeferido' && !c.dataIndeferimento) update.dataIndeferimento=hoje;
   if(etapa==='encerrado') update.dataEncerramento=hoje;
+  if(etapa==='baixa' && !c.dataBaixa) update.dataBaixa=hoje;
   // ao mover para concedido, pedir data da decisão do INSS
   if(etapa==='concedido'){
     update.dataConcedido = hoje;
@@ -2556,9 +2585,115 @@ window.filtrarListaResp = function(primeiroNome){
   renderList();
 };
 
+let relHistChartInstance = null;
+
 window.renderRelatorios = function(){
   renderGrafico();
-  const nasc90 = visibleContracts().filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido'&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=90)
+  const all = visibleContracts();
+
+  // ── BLOCO 1: CARTEIRA ATIVA ──
+  const periodoAtiva = parseInt($('relPeriodoAtiva')?.value||0);
+  const corteAtiva = periodoAtiva>0 ? new Date(Date.now()-periodoAtiva*864e5) : null;
+  const etapasAtivas = [
+    {id:'fechado',    label:'Contrato fechado',          cor:'#1D5FA8', urgente:false},
+    {id:'guia',       label:'Guia enviada',              cor:'#A0612A', urgente:false},
+    {id:'guia-paga',  label:'Guia paga · aguard. nasc.', cor:'#856404', urgente:false},
+    {id:'nasceu',     label:'Nasceu · Protocolar ⚠',    cor:'#B83535', urgente:true},
+    {id:'protocolado',label:'Protocolado',               cor:'#5B4BAD', urgente:false},
+    {id:'indeferido', label:'Indeferido → Recurso',      cor:'#FFAD5C', urgente:false},
+  ];
+  const ativaFiltrada = all.filter(c=>{
+    if(['baixa','encerrado','concedido'].includes(c.etapa)) return false;
+    if(corteAtiva && c.createdAt?.toDate && c.createdAt.toDate()<corteAtiva) return false;
+    return true;
+  });
+  const totalAtiva = ativaFiltrada.length||1;
+  const carteiraEl = $('relCarteiraAtiva');
+  if(carteiraEl) carteiraEl.innerHTML = etapasAtivas.map(e=>{
+    const qtd = ativaFiltrada.filter(c=>c.etapa===e.id).length;
+    const pct = Math.round(qtd/totalAtiva*100);
+    const borda = e.urgente ? `border:2px solid ${e.cor};box-shadow:0 0 0 3px ${e.cor}22` : `border:1px solid var(--border)`;
+    return `<div style="background:var(--surface);border-radius:var(--radius-lg);padding:16px 14px;${borda};text-align:center">
+      <div style="font-size:36px;font-weight:800;color:${e.cor};line-height:1">${qtd}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text);margin:6px 0 4px;line-height:1.3">${e.label}</div>
+      <div style="font-size:11px;color:var(--text2)">${pct}% da carteira</div>
+      ${e.urgente&&qtd>0?`<div style="font-size:10px;background:#B83535;color:#fff;border-radius:6px;padding:2px 6px;margin-top:6px;font-weight:700">AÇÃO IMEDIATA</div>`:''}
+    </div>`;
+  }).join('');
+
+  // ── BLOCO 2: HISTÓRICO / RESULTADOS ──
+  const mesesHist = parseInt($('relPeriodoHist')?.value||6);
+  const hoje = new Date();
+  const mesesLabel = [];
+  for(let i=(mesesHist>0?mesesHist-1:23); i>=0; i--){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+    mesesLabel.push(`${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
+  }
+  function mesDeData(dt){
+    if(!dt) return null;
+    const d = new Date(dt+'T00:00:00');
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  }
+  const dadosConc  = mesesLabel.map(m=>all.filter(c=>mesDeData(c.dataConcedido)===m).length);
+  const dadosEnc   = mesesLabel.map(m=>all.filter(c=>mesDeData(c.dataEncerramento)===m).length);
+  const dadosBaixa = mesesLabel.map(m=>all.filter(c=>mesDeData(c.dataBaixa)===m).length);
+
+  const histLegend = $('relHistLegend');
+  if(histLegend) histLegend.innerHTML = [
+    {cor:'#3A7D44',label:'Concedidos'},
+    {cor:'#1D5FA8',label:'Encerrados'},
+    {cor:'#B83535',label:'Baixas/Perdas'},
+  ].map(l=>`<span style="display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:3px;background:${l.cor};display:inline-block"></span>${l.label}</span>`).join('');
+
+  const histCanvas = $('relHistChart');
+  if(histCanvas && window.Chart){
+    if(relHistChartInstance){ relHistChartInstance.destroy(); relHistChartInstance=null; }
+    relHistChartInstance = new Chart(histCanvas, {
+      type:'bar',
+      data:{
+        labels: mesesLabel,
+        datasets:[
+          {label:'Concedidos',  data:dadosConc,  backgroundColor:'#3A7D44'},
+          {label:'Encerrados',  data:dadosEnc,   backgroundColor:'#1D5FA8'},
+          {label:'Baixas',      data:dadosBaixa, backgroundColor:'#B83535'},
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{mode:'index',intersect:false}},
+        scales:{
+          x:{grid:{display:false}, ticks:{font:{size:10}}},
+          y:{beginAtZero:true, ticks:{stepSize:1, font:{size:10}}, grid:{color:'var(--border)'}}
+        }
+      }
+    });
+  }
+
+  // ── BLOCO 3: RESUMO EXECUTIVO ──
+  const concedidos = all.filter(c=>['concedido','encerrado'].includes(c.etapa)).length;
+  const baixas     = all.filter(c=>c.etapa==='baixa').length;
+  const taxaConc   = concedidos+baixas>0 ? Math.round(concedidos/(concedidos+baixas)*100) : 0;
+  const encerrados = all.filter(c=>c.etapa==='encerrado').length;
+  const novos30    = all.filter(c=>{
+    if(!c.createdAt?.toDate) return false;
+    return c.createdAt.toDate() >= new Date(Date.now()-30*864e5);
+  }).length;
+
+  const resumoEl = $('relResumoExec');
+  if(resumoEl) resumoEl.innerHTML = [
+    {icon:'🏆', val:`${taxaConc}%`,        label:'Taxa de concessão',        sub:`${concedidos} concedidos · ${baixas} baixas`,  cor:'#3A7D44'},
+    {icon:'✅', val:encerrados,             label:'Processos encerrados',     sub:'Honorários 100% quitados',                     cor:'#1D5FA8'},
+    {icon:'📋', val:ativaFiltrada.length,  label:'Contratos em tramitação',  sub:'Exigem ação da equipe',                        cor:'#A0612A'},
+    {icon:'🆕', val:novos30,               label:'Novos contratos (30 dias)',sub:'Cadastrados no último mês',                    cor:'#C94F6D'},
+  ].map(m=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 16px;text-align:center">
+    <div style="font-size:22px;margin-bottom:4px">${m.icon}</div>
+    <div style="font-size:32px;font-weight:800;color:${m.cor};line-height:1">${m.val}</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin:6px 0 3px">${m.label}</div>
+    <div style="font-size:11px;color:var(--text2)">${m.sub}</div>
+  </div>`).join('');
+
+  // nascimentos 90 dias (mantido)
+  const nasc90 = all.filter(c=>c.etapa!=='baixa'&&c.etapa!=='concedido'&&daysUntil(c.dpp)>=0&&daysUntil(c.dpp)<=90)
     .sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
   const el=$('relNascCard');
   if(el) el.innerHTML = nasc90.length ? nasc90.map(c=>`
