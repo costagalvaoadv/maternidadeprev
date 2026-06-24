@@ -2156,7 +2156,10 @@ window.renderDashboard = function(){
       const conc=concessoes.find(x=>x.contractId===c.id);
       if(!conc) return false;
       const parc=gerarParcelas(conc);
-      return parc.length>0 && parc.every(p=>p.pago);
+      if(!parc.length) return false;
+      const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
+      const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
+      return honTotal>0 && (honTotal-honReceb)===0;
     }).map(c=>({col:'#3A7D44',name:c.nome,sub:'✅ Todas as parcelas pagas — processo pode ser encerrado',id:c.id,encerrarId:c.id})),
   ];
   $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
