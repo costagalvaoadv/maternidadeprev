@@ -2151,6 +2151,13 @@ window.renderDashboard = function(){
     ...guiaPend.filter(c=>c.etapa==='fechado').map(c=>({col:'#A0612A',name:c.nome,sub:'Contrato fechado — guia não gerada',id:c.id})),
     ...pendDocs.map(c=>({col:'#856404',name:c.nome,sub:'⚠ Documento imprescindível pendente',id:c.id})),
     ...indeferidos.map(c=>({col:'#FFAD5C',name:c.nome,sub:`⚖ Indeferido em ${c.dataIndeferimento||'—'} — passar para operacional`,id:c.id})),
+    ...ativos.filter(c=>{
+      if(c.etapa!=='concedido') return false;
+      const conc=concessoes.find(x=>x.contractId===c.id);
+      if(!conc) return false;
+      const parc=gerarParcelas(conc);
+      return parc.length>0 && parc.every(p=>p.pago);
+    }).map(c=>({col:'#3A7D44',name:c.nome,sub:'✅ Todas as parcelas pagas — processo pode ser encerrado',id:c.id,encerrarId:c.id})),
   ];
   $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
     const primeiroNome = a.name.split(' ')[0];
@@ -2162,6 +2169,7 @@ window.renderDashboard = function(){
         <div class="alert-name" style="${a.id?'cursor:pointer;text-decoration:underline;text-underline-offset:2px':''}" ${a.id?`onclick="openPanel('${a.id}')"`:''}>${a.name}</div>
         <div class="alert-sub">${a.sub}</div>
         ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;text-decoration:none;margin-top:4px">📱 WhatsApp</a>`:''}
+        ${a.encerrarId?`<button onclick="encerrarProcessoPago('${a.encerrarId}','${a.name}')" style="display:inline-flex;align-items:center;gap:4px;background:#3A7D44;color:#fff;border:none;border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;margin-top:4px">✅ Encerrar processo</button>`:''}
       </div>
     </div>`;
   }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>';
@@ -3158,6 +3166,41 @@ window.marcarPago=async function(cid,idx){
   const parcelasManual = parc.map(p=>({dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago}));
   await updateDoc(doc(db,'concessoes',cid),{parcelasManual});
   toast('Honorário marcado como recebido ✓');
+  // verificar se todas as parcelas estão pagas
+  const todasPagas = parc.every(p=>p.pago);
+  if(todasPagas){
+    const cont = contracts.find(x=>x.id===c.contractId);
+    if(cont && cont.etapa==='concedido'){
+      const confirmar = confirm(`✅ Todas as parcelas de ${cont.nome} foram pagas!\n\nDeseja mover o processo para ENCERRADO?`);
+      if(confirmar){
+        const hoje = new Date().toISOString().split('T')[0];
+        await updateDoc(doc(db,'contracts',cont.id),{etapa:'encerrado', dataEncerramento: hoje});
+        await addDoc(collection(db,'auditlog'),{
+          acao:'etapa_alterada', contratoId:cont.id, nomeCliente:cont.nome,
+          de:'concedido', para:'encerrado',
+          obs:'Encerrado automaticamente após todas as parcelas de honorários serem pagas.',
+          uid: currentUser?.uid||'', nomeUsuario: currentProfile?.nome||'',
+          ts: serverTimestamp()
+        });
+        toast(`Processo de ${cont.nome} movido para ENCERRADO ✓`);
+      }
+    }
+  }
+};
+
+window.encerrarProcessoPago=async function(contractId, nomeCliente){
+  const confirmar = confirm(`✅ Todas as parcelas de ${nomeCliente} foram pagas!\n\nDeseja mover o processo para ENCERRADO?`);
+  if(!confirmar) return;
+  const hoje = new Date().toISOString().split('T')[0];
+  await updateDoc(doc(db,'contracts',contractId),{etapa:'encerrado', dataEncerramento: hoje});
+  await addDoc(collection(db,'auditlog'),{
+    acao:'etapa_alterada', contratoId:contractId, nomeCliente,
+    de:'concedido', para:'encerrado',
+    obs:'Encerrado pelo Dashboard após confirmação — todas as parcelas de honorários pagas.',
+    uid: currentUser?.uid||'', nomeUsuario: currentProfile?.nome||'',
+    ts: serverTimestamp()
+  });
+  toast(`Processo de ${nomeCliente} movido para ENCERRADO ✓`);
 };
 
 window.exportFinanceiroPDF=function(){
