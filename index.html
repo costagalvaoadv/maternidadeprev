@@ -2158,8 +2158,9 @@ window.renderDashboard = function(){
       const parc=gerarParcelas(conc);
       if(!parc.length) return false;
       const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
-      const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
-      return honTotal>0 && (honTotal-honReceb)===0;
+      const honReceb=parc.filter(p=>!!p.pago).reduce((s,p)=>s+p.honorario,0);
+      const todasMarcadas=parc.every(p=>!!p.pago);
+      return todasMarcadas || (honTotal>0 && Math.abs(honTotal-honReceb)<0.05);
     }).map(c=>({col:'#3A7D44',name:c.nome,sub:'✅ Todas as parcelas pagas — processo pode ser encerrado',id:c.id,encerrarId:c.id})),
   ];
   $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
