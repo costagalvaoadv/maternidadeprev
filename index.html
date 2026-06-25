@@ -2243,6 +2243,50 @@ function renderCentralContatos(all){
   });
 
   // ── Grupo 5: Mensagem semanal por mês gestacional ──
+  const msgPorMes = {
+    1: `Olá 😊
+Passando para saber como você está e como está se sentindo nesse comecinho da gestação.
+Sei que essa fase costuma trazer muitas mudanças e quero que saiba que estou acompanhando tudo de perto por aqui.
+Qualquer dúvida ou dificuldade que surgir, pode me chamar, tá bem?`,
+    2: `Olá 😊
+Passando para saber como você está e como está se sentindo nesse comecinho da gestação.
+Sei que essa fase costuma trazer muitas mudanças e quero que saiba que estou acompanhando tudo de perto por aqui.
+Qualquer dúvida ou dificuldade que surgir, pode me chamar, tá bem?`,
+    3: `Olá 😊
+Passando para saber como você está e como está se sentindo nesse comecinho da gestação.
+Sei que essa fase costuma trazer muitas mudanças e quero que saiba que estou acompanhando tudo de perto por aqui.
+Qualquer dúvida ou dificuldade que surgir, pode me chamar, tá bem?`,
+    4: `Oi 😊
+Passando para saber como está a sua gestação e se está tudo bem com você e com o bebê.
+Essa fase costuma ser mais tranquila para muitas mamães, mas cada gravidez é única.
+Estou acompanhando seu caso e quero que saiba que seguimos atentos para que tudo aconteça no tempo certo.`,
+    5: `Olá 😊
+Como vocês estão?
+Passando para acompanhar sua gestação e saber como está essa fase.
+Imagino que agora já esteja vivendo mais intensamente esse momento e começando a organizar muitas coisas.
+Seguimos por aqui acompanhando tudo de perto com você.`,
+    6: `Oi 😊
+Passando para saber como está a sua gestação e se está conseguindo organizar tudo com calma.
+Agora já estamos entrando em uma fase importante e gosto de acompanhar para que nada fique para última hora.
+Qualquer novidade sobre exames, consultas ou previsão do parto, me atualiza por aqui.`,
+    7: `Olá 😊
+Passando para saber como você está e como o bebê está.
+Agora que estamos nos aproximando da reta final, é importante manter tudo bem alinhado para evitar correria depois.
+Estou acompanhando seu caso de perto e qualquer novidade me avisa, tá?`,
+    8: `Oi 😊
+Passando para saber como você está nessa reta final.
+Imagino que agora a ansiedade esteja maior e os preparativos mais intensos.
+Seguimos atentos por aqui. Assim que o bebê nascer ou se houver qualquer mudança na previsão, me avisa imediatamente para organizarmos tudo certinho.`,
+    9: `Olá 😊
+Passando para saber como você está e se está tudo bem nessa fase final.
+Agora estamos bem pertinho da chegada do bebê, então quero reforçar que estou acompanhando tudo de perto.
+Assim que nascer, me avisa o quanto antes e, depois do registro, me envia a certidão de nascimento para darmos andamento sem perder tempo.`,
+    10: `Olá 😊
+Passando para saber como você está e se está tudo bem nessa fase final.
+Agora estamos bem pertinho da chegada do bebê, então quero reforçar que estou acompanhando tudo de perto.
+Assim que nascer, me avisa o quanto antes e, depois do registro, me envia a certidão de nascimento para darmos andamento sem perder tempo.`,
+  };
+
   const gravidas = all.filter(c=>!['baixa','encerrado','concedido','nasceu','protocolado','indeferido'].includes(c.etapa) && c.dpp);
   const porMes = {};
   gravidas.forEach(c=>{
@@ -2254,11 +2298,15 @@ function renderCentralContatos(all){
   const gruposMes = Object.keys(porMes).sort((a,b)=>b-a).map(mes=>{
     const lista = porMes[mes];
     const urgencia = mes>=9?'🔴':mes>=7?'🟠':mes>=5?'🟡':'🟢';
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${mes>=9?'#B83535':mes>=7?'#A0612A':mes>=5?'#856404':'#3A7D44'};border-radius:var(--radius-lg);padding:14px 14px 10px">
-      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${urgencia} ${mes}º Mês Gestacional <span style="font-weight:400;color:var(--text2)">(${lista.length})</span></div>
+    const cor = mes>=9?'#B83535':mes>=7?'#A0612A':mes>=5?'#856404':'#3A7D44';
+    const msg = msgPorMes[parseInt(mes)] || msgPorMes[9];
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${cor};border-radius:var(--radius-lg);padding:14px 14px 10px">
+      <div style="font-size:12px;font-weight:700;color:${cor};margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${urgencia} ${mes}º Mês Gestacional <span style="font-weight:400;color:var(--text2)">(${lista.length})</span></div>
       ${lista.map(c=>{
         const tel=(c.tel||'').replace(/\D/g,'');
-        const wl=tel?`<a href="https://wa.me/55${tel}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`:'';
+        const nomePrimeiro = c.nome.split(' ')[0];
+        const msgPersonalizada = msg.replace('Olá 😊', `Olá ${nomePrimeiro} 😊`).replace('Oi 😊', `Oi ${nomePrimeiro} 😊`);
+        const wl=tel?`<a href="https://wa.me/55${tel}?text=${encodeURIComponent(msgPersonalizada)}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`:'<span style="font-size:11px;color:var(--text2)">Sem tel.</span>';
         return `<div style="padding:7px 0;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
           <div style="flex:1;min-width:0">
             <div style="font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${c.id}')">${c.nome}</div>
