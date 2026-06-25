@@ -1211,34 +1211,38 @@ window.renderRelFinanceiro = function(){
   // mostrar/esconder campos custom
   if(customDiv) customDiv.style.display = periodo==='custom'?'flex':'none';
 
-  // calcular intervalo
+  // calcular intervalo — mês atual = getMonth()+1 (JS é 0-indexado)
+  function ym(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
   let iniMes, fimMes;
+  const mesAtualYM = ym(hoje);
   if(periodo==='mes_atual'){
-    iniMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-    fimMes = iniMes;
+    iniMes = mesAtualYM;
+    fimMes = mesAtualYM;
   } else if(periodo==='mes_seguinte'){
     const seg = new Date(hoje.getFullYear(), hoje.getMonth()+1, 1);
-    iniMes = `${seg.getFullYear()}-${String(seg.getMonth()+1).padStart(2,'0')}`;
-    fimMes = iniMes;
+    iniMes = ym(seg);
+    fimMes = ym(seg);
   } else if(periodo==='mes_anterior'){
     const ant = new Date(hoje.getFullYear(), hoje.getMonth()-1, 1);
-    iniMes = `${ant.getFullYear()}-${String(ant.getMonth()+1).padStart(2,'0')}`;
-    fimMes = iniMes;
+    iniMes = ym(ant);
+    fimMes = ym(ant);
   } else if(periodo==='3m'){
+    // últimos 3 meses incluindo o atual
     const ini = new Date(hoje.getFullYear(), hoje.getMonth()-2, 1);
-    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
-    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    iniMes = ym(ini);
+    fimMes = mesAtualYM;
   } else if(periodo==='6m'){
     const ini = new Date(hoje.getFullYear(), hoje.getMonth()-5, 1);
-    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
-    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    iniMes = ym(ini);
+    fimMes = mesAtualYM;
   } else if(periodo==='12m'){
-    const ini = new Date(hoje.getFullYear()-1, hoje.getMonth()+1, 1);
-    iniMes = `${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}`;
-    fimMes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    // últimos 12 meses incluindo o atual
+    const ini = new Date(hoje.getFullYear(), hoje.getMonth()-11, 1);
+    iniMes = ym(ini);
+    fimMes = mesAtualYM;
   } else {
-    iniMes = $('relFinDe')?.value || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-    fimMes = $('relFinAte')?.value || iniMes;
+    iniMes = $('relFinDe')?.value || mesAtualYM;
+    fimMes = $('relFinAte')?.value || mesAtualYM;
   }
 
   // coletar todas as parcelas no período
@@ -1272,7 +1276,20 @@ window.renderRelFinanceiro = function(){
   const totalEsperado = parcelas.reduce((s,p)=>s+p.hon,0);
   const totalRecebido = parcelas.filter(p=>p.pago).reduce((s,p)=>s+p.hon,0);
   const totalPendente = parcelas.filter(p=>!p.pago&&!p.isInad).reduce((s,p)=>s+p.hon,0);
-  const totalInad = parcelas.filter(p=>!p.pago&&p.isInad).reduce((s,p)=>s+p.hon,0);
+
+  // inadimplência GLOBAL — independente do filtro de período
+  let totalInadGlobal = 0;
+  let nInadGlobal = 0;
+  const idsInadGlobal = new Set();
+  concessoes.forEach(c=>{
+    const parc = gerarParcelas(c);
+    const parcAtras = parc.filter(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
+    if(parcAtras.length){
+      idsInadGlobal.add(c.contractId);
+      totalInadGlobal += parcAtras.reduce((s,p)=>s+p.honorario,0);
+      nInadGlobal++;
+    }
+  });
 
   // métricas
   $('relFinMetrics').innerHTML=`
@@ -1280,7 +1297,11 @@ window.renderRelFinanceiro = function(){
     <div class="metric-card"><div class="metric-val" style="font-size:16px">${fmt(totalEsperado)}</div><div class="metric-lbl">Total esperado</div></div>
     <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalRecebido)}</div><div class="metric-lbl">✓ Recebido</div></div>
     <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalPendente)}</div><div class="metric-lbl">⏳ A receber</div></div>
-    <div class="metric-card"><div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalInad)}</div><div class="metric-lbl">🚨 Inadimplente</div></div>
+    <div class="metric-card" style="border:1px solid #F7C1C1;background:#FFF5F5">
+      <div class="metric-val" style="font-size:16px;color:var(--red)">${fmt(totalInadGlobal)}</div>
+      <div class="metric-lbl">🚨 Inadimplente (global)</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">${nInadGlobal} cliente(s) · saldo acumulado</div>
+    </div>
   `;
 
   // gráfico mês a mês
@@ -3340,40 +3361,52 @@ window.renderFinanceiro = function(){
     </div>
   `;
 
-  // projeção — corrigir taxa de conversão e nome
+  // projeção — separado em Realizado vs Previsão Futura Líquida
   const ativosProj = visibleContracts().filter(c=>!['baixa','encerrado','concedido'].includes(c.etapa));
   const ticketProj = concessoes.length>=5 ? ticketMedio : (ticketMedio>0 ? ticketMedio : 1800);
-  const projecaoTotal = ativosProj.length * ticketProj;
-  // taxa de conversão = concedidos / (concedidos + em andamento)
+  const potencialBruto = ativosProj.length * ticketProj;
   const baseConversao = concessoes.length + ativosProj.length;
   const taxaConversao = baseConversao>0 ? (concessoes.length/baseConversao*100).toFixed(1) : '0.0';
-  const receitaTotal = totalReceb + totalHon + projecaoTotal;
+  // Previsão futura líquida = A Receber + Potencial ajustado pela taxa de conversão
+  const potencialAjustado = potencialBruto * (parseFloat(taxaConversao)/100);
+  const previsaoFuturaLiquida = totalHon + potencialAjustado;
   const finProj=$('finProjecao');
   if(finProj) finProj.innerHTML=`
-    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val">${ativosProj.length}</div>
-      <div class="metric-lbl">Em andamento</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Não concedidos, não encerrados</div>
+    <div style="grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;color:#3A7D44;letter-spacing:.06em;padding:2px 0 6px;border-bottom:1px solid #C0DD97">
+      ✅ Já realizado
     </div>
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(projecaoTotal)}</div>
-      <div class="metric-lbl">Potencial em honorários</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${ativosProj.length} em andamento × ${fmt(ticketProj)}</div>
-    </div>
-    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(receitaTotal)}</div>
-      <div class="metric-lbl">Receita total estimada</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Recebido + a receber + potencial</div>
-    </div>
-    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val" style="font-size:22px;color:#27500A">${taxaConversao}%</div>
-      <div class="metric-lbl">Taxa de conversão</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length} concedidos / ${baseConversao} elegíveis</div>
+      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(totalReceb)}</div>
+      <div class="metric-lbl">Total recebido</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Honorários quitados — histórico</div>
     </div>
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
       <div class="metric-val" style="font-size:16px;color:#27500A">${fmt(ticketProj)}</div>
-      <div class="metric-lbl">Ticket médio usado</div>
+      <div class="metric-lbl">Ticket médio</div>
       <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length>=5?'✓ Calculado automaticamente':'Base estimada'}</div>
+    </div>
+    <div style="grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;color:#1D5FA8;letter-spacing:.06em;padding:10px 0 6px;border-bottom:1px solid #A0C4FF">
+      🔮 Previsão futura líquida
+    </div>
+    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
+      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(totalHon)}</div>
+      <div class="metric-lbl">A receber (confirmado)</div>
+      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">Parcelas futuras de concedidos</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
+      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(potencialAjustado)}</div>
+      <div class="metric-lbl">Potencial ajustado</div>
+      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">${ativosProj.length} ativos × ${fmt(ticketProj)} × ${taxaConversao}% conversão</div>
+    </div>
+    <div class="metric-card" style="border:2px solid #1D5FA8;background:#EEF4FF">
+      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(previsaoFuturaLiquida)}</div>
+      <div class="metric-lbl">Previsão futura líquida</div>
+      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">A receber + potencial ajustado</div>
+    </div>
+    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
+      <div class="metric-val" style="font-size:22px;color:#1D5FA8">${taxaConversao}%</div>
+      <div class="metric-lbl">Taxa de conversão</div>
+      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">${concessoes.length} concedidos / ${baseConversao} elegíveis</div>
     </div>
   `;
 
@@ -3424,30 +3457,40 @@ window.renderFinanceiro = function(){
   // manter finProxCard para compatibilidade (não exibido)
   $('finProxCard') && ($('finProxCard').innerHTML = '');
 
-  // honorários em aberto — separados em vencidos e futuros
+  // honorários em aberto — agrupados por cliente
   const abertoFilt = mesFiltro ? honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)) : honAberto;
   const vencidos = abertoFilt.filter(p=>p.days<0).sort((a,b)=>a.days-b.days);
   const futuros  = abertoFilt.filter(p=>p.days>=0).sort((a,b)=>a.days-b.days);
+
+  function agruparPorCliente(lista, cor, labelFn){
+    const grupos = {};
+    lista.forEach(p=>{
+      if(!grupos[p.contractId]) grupos[p.contractId]={nome:p.nome,tel:p.tel,contractId:p.contractId,parcelas:[]};
+      grupos[p.contractId].parcelas.push(p);
+    });
+    return Object.values(grupos).map(g=>{
+      const total = g.parcelas.reduce((s,p)=>s+p.hon,0);
+      const nParc = g.parcelas.length;
+      const labelDias = labelFn(g.parcelas[0]);
+      return `<div class="alert-item">
+        <div class="alert-dot" style="background:${cor}"></div>
+        <div style="flex:1">
+          <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${g.contractId}')">${g.nome} ${labelDias}</div>
+          <div class="alert-sub">${nParc > 1 ? `${nParc} parcelas pendentes · Total: <strong>${fmt(total)}</strong>` : `Parcela ${g.parcelas[0].parc}/${g.parcelas[0].total} · Previsão ${g.parcelas[0].dt} · <strong>${fmt(total)}</strong>`}${g.tel?' · '+g.tel:''}</div>
+          ${nParc > 1 ? `<div style="margin-top:4px">${g.parcelas.map(p=>`<span style="font-size:10px;background:var(--surface2);border-radius:5px;padding:2px 6px;margin-right:4px">Parc.${p.parc} · ${p.dt} · ${fmt(p.hon)}</span>`).join('')}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   let abertoHTML = '';
   if(vencidos.length){
     abertoHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#B83535;letter-spacing:.05em;padding:6px 0 4px">⚠ Vencidos — não recebidos</div>`;
-    abertoHTML += vencidos.map(p=>`<div class="alert-item">
-      <div class="alert-dot" style="background:#B83535"></div>
-      <div style="flex:1">
-        <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge badge-atrasado">${Math.abs(p.days)}d atraso</span></div>
-        <div class="alert-sub">Parcela ${p.parc}/${p.total} · Previsão ${p.dt} · <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
-      </div>
-    </div>`).join('');
+    abertoHTML += agruparPorCliente(vencidos, '#B83535', p=>`<span class="badge badge-atrasado">${Math.abs(p.days)}d atraso</span>`);
   }
   if(futuros.length){
     abertoHTML += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.05em;padding:${vencidos.length?10:6}px 0 4px">Futuros — dentro do prazo</div>`;
-    abertoHTML += futuros.map(p=>`<div class="alert-item">
-      <div class="alert-dot" style="background:#A0612A"></div>
-      <div style="flex:1">
-        <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome}</div>
-        <div class="alert-sub">Parcela ${p.parc}/${p.total} · Previsão ${p.dt} · <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
-      </div>
-    </div>`).join('');
+    abertoHTML += agruparPorCliente(futuros, '#A0612A', _=>'');
   }
   $('finAbertoCard').innerHTML = abertoHTML || '<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum honorário em aberto. ✓</div>';
 
@@ -3473,19 +3516,35 @@ window.renderFinanceiro = function(){
   }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma concessão encontrada.</div>';
   const inadCard=$('finInadCard');
   if(inadCard) inadCard.innerHTML=inadimplentes.length?inadimplentes.map(i=>{
-    const wLink=i.tel?`https://wa.me/55${i.tel.replace(/\D/g,'')}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}`:'';
+    const tel = i.tel ? i.tel.replace(/\D/g,'') : '';
+    const wLink = tel ? `https://wa.me/55${tel}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}` : '';
     const conc=concessoes.find(x=>x.contractId===i.contractId);
+    const cont=contracts.find(x=>x.id===i.contractId)||{};
     const parcAtras=conc?gerarParcelas(conc).filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7):[];
     const parcDetalhes=parcAtras.map(p=>`<span style="font-size:11px;background:#FDECEC;border-radius:6px;padding:2px 7px;margin-right:4px;margin-top:4px;display:inline-block">Parcela ${p.num} · ${p.dtCliente} · ${fmt(p.honorario)}</span>`).join('');
+    // régua de cobrança
+    const ultCob = cont.dataUltimaCobranca;
+    let cobTag = '';
+    if(ultCob){
+      const diasCob = Math.round((new Date()-new Date(ultCob+'T00:00:00'))/864e5);
+      cobTag = `<span style="font-size:10px;color:${diasCob<=7?'#3A7D44':'#A0612A'};background:${diasCob<=7?'#EBF5ED':'#FFF3E0'};border-radius:5px;padding:2px 7px">⏱ Última cobrança: ${diasCob===0?'hoje':`há ${diasCob} dia${diasCob!==1?'s':''}`}</span>`;
+    } else {
+      cobTag = `<span style="font-size:10px;color:#B83535;background:#FFF5F5;border-radius:5px;padding:2px 7px">⚠ Nunca cobrada</span>`;
+    }
     return `<div style="background:#FFF5F5;border:1px solid #F7C1C1;border-radius:10px;padding:12px 14px;margin-bottom:8px">
-      <div style="margin-bottom:8px">
+      <div style="margin-bottom:6px">
         <div style="font-weight:600;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${i.contractId}')">${i.nome}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.parcAtrasadas} parcela(s) · Total: <strong style="color:#B83535">${fmt(i.totalAtrasado)}</strong> · Em atraso desde ${i.primeiraDt||'—'}</div>
         ${i.tel?`<div style="font-size:11px;font-family:monospace;color:var(--text2);margin-top:2px">${i.tel}</div>`:''}
+        <div style="margin-top:5px">${cobTag}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;text-decoration:none;flex:1;justify-content:center">📱 Cobrar via WhatsApp</a>`:''}
+        ${wLink?`<a href="${wLink}" target="_blank" onclick="mostrarConfirmacaoCobranca('${i.contractId}',this)" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;text-decoration:none;flex:1;justify-content:center">📱 Cobrar via WhatsApp</a>`:''}
         <button class="btn-sm" onclick="openConcessaoModal('${conc?.id||''}')" style="font-size:11px;flex-shrink:0">Ver parcelas</button>
+      </div>
+      <div id="confirmCob_${i.contractId}" style="display:none;margin-top:8px;background:#F0FFF4;border:1px solid #C0DD97;border-radius:7px;padding:7px 10px;font-size:11px;color:#27500A;display:none">
+        Enviou a mensagem?
+        <button onclick="registrarCobranca('${i.contractId}')" style="margin-left:8px;background:#3A7D44;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-weight:600">✓ Sim, registrar cobrança</button>
       </div>
       <div style="margin-top:8px">${parcDetalhes}</div>
     </div>`;
@@ -3513,6 +3572,23 @@ window.renderFinanceiro = function(){
 
   // renderizar relatório financeiro
   renderRelFinanceiro();
+};
+
+window.mostrarConfirmacaoCobranca = function(contractId, linkEl){
+  // após 800ms (tempo para o link abrir), mostra a confirmação
+  setTimeout(()=>{
+    const el = document.getElementById('confirmCob_'+contractId);
+    if(el) el.style.display='block';
+    if(linkEl){ linkEl.style.background='#888'; linkEl.textContent='📱 Mensagem aberta...'; }
+  }, 800);
+};
+
+window.registrarCobranca = async function(contractId){
+  const hoje = new Date().toISOString().split('T')[0];
+  await updateDoc(doc(db,'contracts',contractId),{dataUltimaCobranca: hoje});
+  const el = document.getElementById('confirmCob_'+contractId);
+  if(el){ el.style.background='#EBF5ED'; el.style.borderColor='#3A7D44'; el.innerHTML='<strong style="color:#27500A">✓ Cobrança registrada hoje!</strong>'; }
+  toast('Cobrança registrada ✓');
 };
 
 window.recalcularTodosHon = function(){
