@@ -1211,35 +1211,27 @@ window.renderRelFinanceiro = function(){
   // mostrar/esconder campos custom
   if(customDiv) customDiv.style.display = periodo==='custom'?'flex':'none';
 
-  // calcular intervalo — mês atual = getMonth()+1 (JS é 0-indexado)
+  // calcular intervalo
   function ym(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-  let iniMes, fimMes;
   const mesAtualYM = ym(hoje);
+  let iniMes, fimMes;
   if(periodo==='mes_atual'){
-    iniMes = mesAtualYM;
-    fimMes = mesAtualYM;
+    iniMes = mesAtualYM; fimMes = mesAtualYM;
   } else if(periodo==='mes_seguinte'){
     const seg = new Date(hoje.getFullYear(), hoje.getMonth()+1, 1);
-    iniMes = ym(seg);
-    fimMes = ym(seg);
+    iniMes = ym(seg); fimMes = ym(seg);
   } else if(periodo==='mes_anterior'){
     const ant = new Date(hoje.getFullYear(), hoje.getMonth()-1, 1);
-    iniMes = ym(ant);
-    fimMes = ym(ant);
+    iniMes = ym(ant); fimMes = ym(ant);
   } else if(periodo==='3m'){
-    // últimos 3 meses incluindo o atual
     const ini = new Date(hoje.getFullYear(), hoje.getMonth()-2, 1);
-    iniMes = ym(ini);
-    fimMes = mesAtualYM;
+    iniMes = ym(ini); fimMes = mesAtualYM;
   } else if(periodo==='6m'){
     const ini = new Date(hoje.getFullYear(), hoje.getMonth()-5, 1);
-    iniMes = ym(ini);
-    fimMes = mesAtualYM;
+    iniMes = ym(ini); fimMes = mesAtualYM;
   } else if(periodo==='12m'){
-    // últimos 12 meses incluindo o atual
     const ini = new Date(hoje.getFullYear(), hoje.getMonth()-11, 1);
-    iniMes = ym(ini);
-    fimMes = mesAtualYM;
+    iniMes = ym(ini); fimMes = mesAtualYM;
   } else {
     iniMes = $('relFinDe')?.value || mesAtualYM;
     fimMes = $('relFinAte')?.value || mesAtualYM;
@@ -3361,52 +3353,35 @@ window.renderFinanceiro = function(){
     </div>
   `;
 
-  // projeção — separado em Realizado vs Previsão Futura Líquida
+  // projeção — linha única, 4 cards clean
   const ativosProj = visibleContracts().filter(c=>!['baixa','encerrado','concedido'].includes(c.etapa));
   const ticketProj = concessoes.length>=5 ? ticketMedio : (ticketMedio>0 ? ticketMedio : 1800);
   const potencialBruto = ativosProj.length * ticketProj;
   const baseConversao = concessoes.length + ativosProj.length;
   const taxaConversao = baseConversao>0 ? (concessoes.length/baseConversao*100).toFixed(1) : '0.0';
-  // Previsão futura líquida = A Receber + Potencial ajustado pela taxa de conversão
   const potencialAjustado = potencialBruto * (parseFloat(taxaConversao)/100);
-  const previsaoFuturaLiquida = totalHon + potencialAjustado;
+  const previsaoCaixaFuturo = totalHon + potencialAjustado;
   const finProj=$('finProjecao');
   if(finProj) finProj.innerHTML=`
-    <div style="grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;color:#3A7D44;letter-spacing:.06em;padding:2px 0 6px;border-bottom:1px solid #C0DD97">
-      ✅ Já realizado
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val">${ativosProj.length}</div>
+      <div class="metric-lbl">Em andamento</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Não concedidos, não encerrados</div>
     </div>
     <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(totalReceb)}</div>
-      <div class="metric-lbl">Total recebido</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">Honorários quitados — histórico</div>
-    </div>
-    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
-      <div class="metric-val" style="font-size:16px;color:#27500A">${fmt(ticketProj)}</div>
-      <div class="metric-lbl">Ticket médio</div>
-      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length>=5?'✓ Calculado automaticamente':'Base estimada'}</div>
-    </div>
-    <div style="grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;color:#1D5FA8;letter-spacing:.06em;padding:10px 0 6px;border-bottom:1px solid #A0C4FF">
-      🔮 Previsão futura líquida
-    </div>
-    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
-      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(totalHon)}</div>
-      <div class="metric-lbl">A receber (confirmado)</div>
-      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">Parcelas futuras de concedidos</div>
-    </div>
-    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
-      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(potencialAjustado)}</div>
-      <div class="metric-lbl">Potencial ajustado</div>
-      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">${ativosProj.length} ativos × ${fmt(ticketProj)} × ${taxaConversao}% conversão</div>
+      <div class="metric-val" style="font-size:15px;color:#27500A">${fmt(potencialBruto)}</div>
+      <div class="metric-lbl">Potencial bruto em honorários</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${ativosProj.length} em andamento × ${fmt(ticketProj)}</div>
     </div>
     <div class="metric-card" style="border:2px solid #1D5FA8;background:#EEF4FF">
-      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(previsaoFuturaLiquida)}</div>
-      <div class="metric-lbl">Previsão futura líquida</div>
-      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">A receber + potencial ajustado</div>
+      <div class="metric-val" style="font-size:15px;color:#1D5FA8">${fmt(previsaoCaixaFuturo)}</div>
+      <div class="metric-lbl">Previsão de Caixa Futuro</div>
+      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">A receber + (Potencial bruto × ${taxaConversao}% de conversão)</div>
     </div>
-    <div class="metric-card" style="border:1px solid #A0C4FF;background:#EEF4FF">
-      <div class="metric-val" style="font-size:22px;color:#1D5FA8">${taxaConversao}%</div>
+    <div class="metric-card" style="border:1px solid #C0DD97;background:#EBF5ED">
+      <div class="metric-val" style="font-size:22px;color:#27500A">${taxaConversao}%</div>
       <div class="metric-lbl">Taxa de conversão</div>
-      <div style="font-size:10px;color:#1D5FA8;margin-top:3px">${concessoes.length} concedidos / ${baseConversao} elegíveis</div>
+      <div style="font-size:10px;color:#3A7D44;margin-top:3px">${concessoes.length} concedidos / ${baseConversao} elegíveis</div>
     </div>
   `;
 
