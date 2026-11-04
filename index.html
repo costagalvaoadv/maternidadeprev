@@ -608,6 +608,9 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <div style="font-size:12px;color:var(--text2);margin-top:2px">Visível para a gestora e para quem tem acesso financeiro</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="finPerTipo" onchange="renderFinanceiro()" title="Tipo de período" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)">
+            <option value="mes">Mês</option><option value="trimestre">Trimestre</option><option value="semestre">Semestre</option><option value="ano">Ano</option><option value="todos">Todos</option>
+          </select>
           <select id="finMesFiltro" onchange="renderFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
           <button class="btn-new" style="font-size:12px;padding:6px 14px" onclick="openConcessaoModal()">+ Registrar concessão</button>
           <button class="btn-export btn-export-pdf" onclick="exportFinanceiroPDF()">⬇ PDF</button>
@@ -615,7 +618,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
       </div>
 
       <!-- métricas financeiras -->
-      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">💰 Realizado — benefícios concedidos</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">💰 Realizado — benefícios concedidos <span id="finPerLabel" style="text-transform:none;letter-spacing:0;font-weight:600;color:var(--accent);margin-left:6px"></span></div>
       <div class="metrics-row" id="finMetrics"></div>
 
       <!-- bloco projeção -->
@@ -3315,17 +3318,21 @@ window.renderFinanceiro = function(){
         return nomeConc.includes(finSearchVal) || nomeCont.includes(finSearchVal);
       })
     : concessoes;
-  // filtro meses
-  const meses=new Set();
-  concessoes.forEach(c=>{gerarParcelas(c).forEach(p=>{ if(p.dtCliente&&p.dtCliente!=='—') meses.add(p.dtCliente.slice(0,7)); });});
+  // filtro de período: mês, trimestre, semestre, ano ou todos
+  const tipoPer=$('finPerTipo')?.value||'mes';
   const selMes=$('finMesFiltro');
-  const prevVal=selMes.value;
-  const mesAtual=hoje.toISOString().slice(0,7);
-  selMes.innerHTML='<option value="">Todos os meses</option>'+[...meses].sort().map(m=>`<option value="${m}" ${m===mesAtual&&!prevVal?'selected':''}>${m}</option>`).join('');
-  if(prevVal) selMes.value=prevVal;
-  const mesFiltro=selMes.value;
+  const prevVal=selMes.value, prevTipo=selMes.dataset.tipo;
+  const opcsPer=opcoesPeriodo(tipoPer);
+  selMes.innerHTML=opcsPer.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');
+  selMes.style.display = tipoPer==='todos' ? 'none' : '';
+  selMes.value = (prevTipo===tipoPer && prevVal && opcsPer.some(o=>o.v===prevVal)) ? prevVal : (opcsPer.find(o=>o.atual)?.v || '');
+  selMes.dataset.tipo=tipoPer;
+  const per=periodoFinanceiro();
+  const noPer=d=>!per.ini || (!!d && d>=per.ini && d<=per.fim);
+  if($('finPerLabel')) $('finPerLabel').textContent='· Mostrando: '+per.label;
 
   let totalHon=0,totalReceb=0,totalAberto=0,totalAResgatar=0,totalBenefLiq=0;
+  let recPer=0, honPer=0;
   let proxReceb=[],honAberto=[],inadimplentes=[];
   const idsInadTemp=new Set();
 
@@ -3343,7 +3350,7 @@ window.renderFinanceiro = function(){
     const cobAc=idxCobertosPorAcordo(c);
     parc.forEach(p=>{
       totalBenefLiq+=p.valorBenef;
-      if(p.pago){ totalReceb+=(p.valorRecebido!=null?p.valorRecebido:p.honorario); }
+      if(p.pago){ const _v=(p.valorRecebido!=null?p.valorRecebido:p.honorario); totalReceb+=_v; if(noPer(p.dtCliente)) recPer+=_v; }
       else {
         if(cobAc.has(p.num-1)) return; // coberta por acordo: entra pelas datas do acordo
         const days=daysUntilDate(p.dtCliente);
@@ -3353,6 +3360,7 @@ window.renderFinanceiro = function(){
           totalAResgatar+=p.honorario;
         } else {
           totalHon+=p.honorario;
+          if(noPer(p.dtCliente)) honPer+=p.honorario;
           totalAberto+=p.honorario;
           honAberto.push(item);
           if(days>=0&&days<=60) proxReceb.push(item);
@@ -3363,11 +3371,11 @@ window.renderFinanceiro = function(){
     acordosDe(c).filter(a=>a.status==='ativo').forEach(a=>{
       const venc=acordoVencido(a);
       (a.pagamentos||[]).forEach((pg,k)=>{
-        if(pg.pago){ totalReceb+=(+pg.valor||0); if(venc) totalAResgatar-=(+pg.valor||0); return; }
+        if(pg.pago){ totalReceb+=(+pg.valor||0); if(noPer(pg.dt)) recPer+=(+pg.valor||0); if(venc) totalAResgatar-=(+pg.valor||0); return; }
         if(venc) return;
         const days=daysUntilDate(pg.dt);
         const item={nome:cont.nome||c.nomeCliente,tel:cont.tel||'',parc:k+1,total:a.pagamentos.length,dt:pg.dt,hon:+pg.valor||0,days,cid:c.id,idx:-1,contractId:c.contractId,acordoId:a.id,pgIdx:k};
-        totalHon+=item.hon; totalAberto+=item.hon; honAberto.push(item);
+        totalHon+=item.hon; if(noPer(pg.dt)) honPer+=item.hon; totalAberto+=item.hon; honAberto.push(item);
         if(days>=0&&days<=60) proxReceb.push(item);
       });
     });
@@ -3382,6 +3390,9 @@ window.renderFinanceiro = function(){
   honAberto.sort((a,b)=>a.days-b.days);
 
   const ticketMedio = concessoes.length>0 ? (totalHon+totalReceb+totalAResgatar)/concessoes.length : 0;
+  const concPer = concessoesFiltradas.filter(c=>noPer(dataConcessaoDe(c)));
+  const ticketPer = concPer.length ? concPer.reduce((s,c)=>s+gerarParcelas(c).reduce((a,p)=>a+p.honorario,0),0)/concPer.length : 0;
+  const filtrado = !!per.ini;
   const taxaInad = concessoes.length>0 ? (inadimplentes.length/concessoes.length*100).toFixed(1) : '0.0';
   const corTaxa = parseFloat(taxaInad)>=10?'var(--red)':parseFloat(taxaInad)>=5?'#A0612A':'var(--green)';
 
@@ -3389,17 +3400,18 @@ window.renderFinanceiro = function(){
   const prazoMedio = calcularPrazoMedio();
   $('finMetrics').innerHTML=`
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')" title="Ver benefícios">
-      <div class="metric-val">${concessoesFiltradas.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
+      <div class="metric-val">${concPer.length}</div><div class="metric-lbl">Benefícios concedidos</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
-      <div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(totalReceb)}</div><div class="metric-lbl">Honor. recebido</div></div>
+      <div class="metric-val" style="font-size:16px;color:var(--green)">${fmt(recPer)}</div><div class="metric-lbl">Honor. recebido</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finProxCard')">
-      <div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(totalHon)}</div><div class="metric-lbl">Honor. a receber</div></div>
+      <div class="metric-val" style="font-size:16px;color:var(--amber)">${fmt(honPer)}</div><div class="metric-lbl">Honor. a receber</div></div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finConcedidosCard')">
-      <div class="metric-val" style="font-size:16px">${fmt(ticketMedio)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
+      <div class="metric-val" style="font-size:16px">${fmt(ticketPer)}</div><div class="metric-lbl">Ticket médio honor.</div></div>
     <div class="metric-card" style="${prazoMedio?'border:1px solid #C0DD97;background:#EBF5ED':''}">
       <div class="metric-val" style="font-size:${prazoMedio?'28px':'18px'};color:${prazoMedio?'#27500A':'var(--text2)'}">${prazoMedio?prazoMedio.media+'d':'—'}</div>
       <div class="metric-lbl">Prazo médio concessão → 1º pgto</div>
       ${prazoMedio?`<div style="font-size:10px;color:#3A7D44;margin-top:3px">Base: ${prazoMedio.total} caso${prazoMedio.total!==1?'s':''}</div>`:'<div style="font-size:10px;color:var(--text3);margin-top:3px">Preencha datas de concessão</div>'}
+      ${tagGeral(filtrado)}
     </div>
     <div class="metric-card metric-link" onclick="scrollFinCol('finInadCard')" style="border:1px solid #F7C1C1;background:#FFF5F5">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -3409,9 +3421,10 @@ window.renderFinanceiro = function(){
       <div class="metric-lbl" style="margin-bottom:4px">Inadimplentes · taxa</div>
       <div style="font-size:13px;font-weight:600;color:var(--red)">${fmt(totalAResgatar)}</div>
       <div style="font-size:10px;color:var(--text2)">a resgatar</div>
+      ${tagGeral(filtrado)}
     </div>
-    ${cardMetricaCobranca()}
-    ${cardPontualidade()}
+    ${cardMetricaCobranca(filtrado)}
+    ${cardPontualidade(noPer)}
   `;
 
   // projeção — linha única, 4 cards clean
@@ -3494,7 +3507,7 @@ window.renderFinanceiro = function(){
   $('finProxCard') && ($('finProxCard').innerHTML = '');
 
   // honorários em aberto — agrupados por cliente
-  const abertoFilt = mesFiltro ? honAberto.filter(p=>p.dt&&p.dt.startsWith(mesFiltro)) : honAberto;
+  const abertoFilt = per.ini ? honAberto.filter(p=>noPer(p.dt)) : honAberto;
   const vencidos = abertoFilt.filter(p=>p.days<0).sort((a,b)=>a.days-b.days);
   const futuros  = abertoFilt.filter(p=>p.days>=0).sort((a,b)=>a.days-b.days);
 
@@ -4526,7 +4539,7 @@ window.alertasCobranca = function(){
 };
 
 // ── métricas no financeiro ──
-window.cardMetricaCobranca = function(){
+window.cardMetricaCobranca = function(filtrado){
   let ativos=0, valorAc=0, cumpridos=0, falhos=0, formal=0, valorFormal=0;
   concessoes.forEach(c=>{
     acordosDe(c).forEach(a=>{
@@ -4541,10 +4554,10 @@ window.cardMetricaCobranca = function(){
   return `<div class="metric-card" style="border:1px solid #B5D4F4;background:#EAF2FC">
       <div class="metric-val" style="color:#1D5FA8">${ativos}</div><div class="metric-lbl">Acordos em dia</div>
       <div style="font-size:13px;font-weight:600;color:#1D5FA8">${fmt(valorAc)}</div>
-      <div style="font-size:10px;color:var(--text2)">Cumprimento: ${taxa===null?'sem histórico':taxa+'% ('+cumpridos+' de '+base+')'}</div></div>
+      <div style="font-size:10px;color:var(--text2)">Cumprimento: ${taxa===null?'sem histórico':taxa+'% ('+cumpridos+' de '+base+')'}</div>${tagGeral(filtrado)}</div>
     <div class="metric-card" style="border:1px solid #CECBF6;background:#F0EEFB">
       <div class="metric-val" style="color:#5B4BAD">${formal}</div><div class="metric-lbl">Em cobrança formal</div>
-      <div style="font-size:13px;font-weight:600;color:#5B4BAD">${fmt(valorFormal)}</div></div>`;
+      <div style="font-size:13px;font-weight:600;color:#5B4BAD">${fmt(valorFormal)}</div>${tagGeral(filtrado)}</div>`;
 };
 window.tagReguaInad = function(c){
   if(!c) return '';
@@ -4587,9 +4600,10 @@ function pontualidadeDe(lista){
     nAtrasos: atrasos.length,
   };
 }
-window.cardPontualidade = function(){
+window.cardPontualidade = function(filtroData){
   const todas=[]; let clientesRecorrentes=0;
-  concessoes.forEach(c=>{ const parc=gerarParcelas(c); todas.push(...parc); if(pontualidadeDe(parc).nAtrasos>=2) clientesRecorrentes++; });
+  const f = typeof filtroData==='function' ? filtroData : ()=>true;
+  concessoes.forEach(c=>{ const parc=gerarParcelas(c).filter(p=>p.pago && f(p.dtPago)); todas.push(...parc); if(pontualidadeDe(parc).nAtrasos>=2) clientesRecorrentes++; });
   const pt=pontualidadeDe(todas);
   const pct=v=>pt.total?Math.round(v/pt.total*100):0;
   return `<div class="metric-card" style="border:1px solid #C0DD97;background:#F6FBF2;text-align:left">
@@ -4649,6 +4663,56 @@ window.confirmarRecebimento = async function(){
     fecharModalCob('cobRecebModal');
   }catch(e){ alert('Erro: '+e.message); if(btn){btn.disabled=false;btn.textContent='Confirmar recebimento';} }
 };
+// ---
+
+// ── filtro de período do financeiro (mês, trimestre, semestre, ano, todos) ──
+const MESES_PT=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function chavePeriodo(iso,tipo){
+  if(!iso) return ''; const y=iso.slice(0,4), m=+iso.slice(5,7);
+  if(tipo==='mes') return iso.slice(0,7);
+  if(tipo==='trimestre') return `${y}-T${Math.ceil(m/3)}`;
+  if(tipo==='semestre') return `${y}-S${m<=6?1:2}`;
+  if(tipo==='ano') return y;
+  return '';
+}
+function rotuloPeriodo(ch,tipo){
+  if(tipo==='mes'){ const [y,m]=ch.split('-'); return `${MESES_PT[+m-1]} de ${y}`; }
+  if(tipo==='trimestre'){ const [y,t]=ch.split('-T'); return `${t}º trimestre de ${y}`; }
+  if(tipo==='semestre'){ const [y,s]=ch.split('-S'); return `${s}º semestre de ${y}`; }
+  if(tipo==='ano') return `ano de ${ch}`;
+  return 'todo o histórico';
+}
+function intervaloPeriodo(ch,tipo){
+  const fimMes=(y,m)=>{ const d=new Date(+y,+m,0); return `${y}-${String(m).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+  if(tipo==='mes'){ const [y,m]=ch.split('-'); return [`${y}-${m}-01`, fimMes(y,+m)]; }
+  if(tipo==='trimestre'){ const [y,t]=ch.split('-T'); const m1=(+t-1)*3+1; return [`${y}-${String(m1).padStart(2,'0')}-01`, fimMes(y,m1+2)]; }
+  if(tipo==='semestre'){ const [y,s]=ch.split('-S'); return s==='1'?[`${y}-01-01`,`${y}-06-30`]:[`${y}-07-01`,`${y}-12-31`]; }
+  if(tipo==='ano') return [`${ch}-01-01`,`${ch}-12-31`];
+  return ['',''];
+}
+function dataConcessaoDe(c){
+  const cont=contDe(c);
+  if(cont.dataConcedido) return cont.dataConcedido;
+  const ca=c.createdAt;
+  if(ca && typeof ca.toDate==='function'){ const d=ca.toDate(); return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
+  if(typeof ca==='string' && /^\d{4}-\d{2}-\d{2}/.test(ca)) return ca.slice(0,10);
+  return gerarParcelas(c)[0]?.dtCliente||'';
+}
+window.opcoesPeriodo = function(tipo){
+  if(tipo==='todos') return [];
+  const set=new Set(); const atual=chavePeriodo(hojeLocal(),tipo);
+  concessoes.forEach(c=>{ gerarParcelas(c).forEach(p=>{ if(p.dtCliente) set.add(chavePeriodo(p.dtCliente,tipo)); }); const dc=dataConcessaoDe(c); if(dc) set.add(chavePeriodo(dc,tipo)); });
+  set.add(atual);
+  return [...set].filter(Boolean).sort().reverse().map(v=>({v, l:rotuloPeriodo(v,tipo)+(v===atual?' (atual)':''), atual:v===atual}));
+};
+window.periodoFinanceiro = function(){
+  const tipo=$('finPerTipo')?.value||'mes'; const ch=$('finMesFiltro')?.value||'';
+  if(tipo==='todos'||!ch) return {tipo:'todos', ini:'', fim:'', label:'todo o histórico'};
+  const [ini,fim]=intervaloPeriodo(ch,tipo);
+  return {tipo, ini, fim, label:rotuloPeriodo(ch,tipo)};
+};
+function tagGeral(ativo){ return ativo?`<div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">geral</div>`:''; }
+
 window.marcarDataPagamentoVer = function(i){
   const ck=$(`fp_pago_${i}`), dt=$(`fp_dtpg_${i}`); if(!ck||!dt) return;
   if(ck.checked && !dt.value) dt.value=hojeLocal();
