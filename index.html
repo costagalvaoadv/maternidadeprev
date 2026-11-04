@@ -700,7 +700,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
 
   <!-- MODAL CONCESSÃO/FINANCEIRO -->
   <div class="modal-overlay" id="concessaoModalOverlay" onclick="closeConcessaoModalBg(event)">
-    <div class="modal" style="max-width:580px">
+    <div class="modal" style="max-width:700px">
       <div class="modal-header">
         <h2 id="concessaoModalTitle">Registrar concessão</h2>
         <button class="icon-btn" onclick="closeConcessaoModal()">✕</button>
@@ -1550,6 +1550,7 @@ function gerarParcelas(c){
       pago:p.pago||false,
       dtPago:p.dtPago||'',
       valorRecebido:(p.valorRecebido!=null&&p.valorRecebido!=='')?parseFloat(p.valorRecebido):null,
+      dataConfirmada:!!p.dataConfirmada,
     }));
   }
   // retrocompatibilidade com formato antigo
@@ -1572,7 +1573,7 @@ window.gerarCamposParcelas = function(){
   for(let i=0;i<n;i++){
     const p = existentes[i]||{};
     const pago = p.pago||false;
-    html += `<div class="fin-parc" style="display:grid;grid-template-columns:24px 1fr 110px 110px 100px;gap:6px;align-items:center;margin-bottom:6px">
+    html += `<div class="fin-parc" style="display:grid;grid-template-columns:24px 1fr 105px 105px 92px 128px;gap:6px;align-items:center;margin-bottom:6px">
       <div class="fin-parc-num" style="font-size:12px;font-weight:700;color:var(--accent);text-align:center">${i+1}</div>
       <input type="date" id="fp_dt_${i}" value="${p.dt||''}"
         style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
@@ -1584,8 +1585,11 @@ window.gerarCamposParcelas = function(){
         placeholder="Honorário R$" step="0.01" min="0"
         style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:#EBF5ED;color:#27500A;font-weight:500">
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
-        <input type="checkbox" id="fp_pago_${i}" ${pago?'checked':''} style="width:14px;height:14px;cursor:pointer"> Recebido
+        <input type="checkbox" id="fp_pago_${i}" ${pago?'checked':''} onchange="marcarDataPagamentoVer(${i})" style="width:14px;height:14px;cursor:pointer"> Recebido
       </label>
+      <div><input type="date" id="fp_dtpg_${i}" value="${pago?(p.dtPago||''):''}" title="Data em que o pagamento caiu na conta"
+        style="font-size:11px;padding:5px 6px;border:1px solid ${pago&&!p.dataConfirmada?'#F0D080':'var(--border)'};border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%">
+        ${pago&&!p.dataConfirmada?'<div style="font-size:9px;color:#856404;margin-top:2px">data não confirmada</div>':''}</div>
     </div>`;
   }
   $('fc_parcelas_manual').innerHTML = html;
@@ -1685,8 +1689,9 @@ window.salvarConcessao=async function(){
       valorBenef:parseFloat($(`fp_val_${i}`)?.value)||0,
       honorario:parseFloat($(`fp_hon_${i}`)?.value)||0,
       pago:_pg,
-      dtPago:_pg ? ((_old.pago && _old.dtPago) ? _old.dtPago : new Date().toISOString().split('T')[0]) : '',
+      dtPago:_pg ? ($(`fp_dtpg_${i}`)?.value || ((_old.pago && _old.dtPago) ? _old.dtPago : new Date().toISOString().split('T')[0])) : '',
       valorRecebido:_pg ? (_old.valorRecebido ?? null) : null,
+      dataConfirmada:_pg ? (!_old.pago || !!_old.dataConfirmada || (($(`fp_dtpg_${i}`)?.value||'') !== (_old.dtPago||''))) : false,
     });
   }
   const data={
@@ -3406,6 +3411,7 @@ window.renderFinanceiro = function(){
       <div style="font-size:10px;color:var(--text2)">a resgatar</div>
     </div>
     ${cardMetricaCobranca()}
+    ${cardPontualidade()}
   `;
 
   // projeção — linha única, 4 cards clean
@@ -3460,7 +3466,7 @@ window.renderFinanceiro = function(){
         <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge ${cls}">${labelDias}</span>${inad?'<span class="badge badge-atrasado" style="margin-left:4px">Inadimplente</span>':''}</div>
         <div class="alert-sub">${p.acordoId?`<span class="badge badge-blue">🤝 Acordo</span> Pagamento ${p.parc}/${p.total}`:`Parcela ${p.parc}/${p.total}`} · ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
       </div>
-      ${p.acordoId?`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPagamentoAcordo('${p.cid}','${p.acordoId}',${p.pgIdx})">✓ Recebido</button>`:`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>`}
+      ${p.acordoId?`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPagamentoAcordo('${p.cid}','${p.acordoId}',${p.pgIdx})">✓ Recebido</button>`:`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="openRecebimentoModal('${p.cid}',${p.idx})">✓ Recebido</button>`}
     </div>`;
   }
 
@@ -3658,10 +3664,15 @@ window.abrirClienteDoFinanceiro = function(contractId){
   }
 };
 
-window.marcarPago=async function(cid,idx){
+window.marcarPago=async function(cid,idx,dtInformada,valorInformado){
   const c=concessoes.find(x=>x.id===cid); if(!c) return;
-  const parc = gerarParcelas(c).map((p,i)=>i===idx?{...p,pago:true,dtPago:new Date().toISOString().split('T')[0]}:p);
-  const parcelasManual = parc.map((p,i)=>({...((c.parcelasManual||[])[i]||{}),dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago}));
+  const _dtPg = dtInformada || new Date().toISOString().split('T')[0];
+  const parc = gerarParcelas(c).map((p,i)=>i===idx?{...p,pago:true,dtPago:_dtPg}:p);
+  const parcelasManual = parc.map((p,i)=>{
+    const o={...((c.parcelasManual||[])[i]||{}),dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago};
+    if(i===idx){ o.dataConfirmada=true; if(valorInformado!=null) o.valorRecebido=valorInformado; }
+    return o;
+  });
   await updateDoc(doc(db,'concessoes',cid),{parcelasManual});
   toast('Honorário marcado como recebido ✓');
   // verificar se todas as parcelas estão pagas
@@ -4099,13 +4110,11 @@ window.cancelarAcordo = async function(concId, acordoId){
   await salvarConc(c,{acordos},'Acordo cancelado');
   toast('Acordo cancelado'); openReguaModal(c.contractId);
 };
-window.marcarPagamentoAcordo = async function(concId, acordoId, k){
+window.marcarPagamentoAcordo = function(concId, acordoId, k){ openRecebimentoModal(concId, null, acordoId, k); };
+window.confirmarPagamentoAcordo = async function(concId, acordoId, k, dtPg){
   const c=concessoes.find(x=>x.id===concId); if(!c) return;
   const a=acordosDe(c).find(x=>x.id===acordoId); if(!a) return;
   const pg=a.pagamentos[k]; if(!pg||pg.pago) return;
-  const dtPg=prompt(`Confirmar o recebimento de ${fmt(pg.valor)} (pagamento ${k+1} de ${a.pagamentos.length} do acordo).\n\nData do recebimento (AAAA-MM-DD):`, hojeLocal());
-  if(dtPg===null) return;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(dtPg)){ alert('Data inválida. Use o formato AAAA-MM-DD.'); return; }
   const pagamentos=a.pagamentos.map((p,i)=>i===k?{...p,pago:true,dtPago:dtPg}:p);
   const cumprido=pagamentos.every(p=>p.pago);
   let novoA={...a, pagamentos};
@@ -4122,7 +4131,7 @@ window.marcarPagamentoAcordo = async function(concId, acordoId, k){
       const ultimo=i===Math.max(...a.parcelasIdx);
       const v= ultimo ? r2(totalRec-acumulado) : r2(totalRec*(+p.honorario||0)/somaHon);
       acumulado=r2(acumulado+v);
-      return {...p, pago:true, dtPago:dtPg, valorRecebido:v, viaAcordo:a.id};
+      return {...p, pago:true, dtPago:dtPg, valorRecebido:v, viaAcordo:a.id, dataConfirmada:true};
     });
   }
   data.acordos=acordosDe(c).map(x=>x.id===acordoId?novoA:x);
@@ -4149,7 +4158,7 @@ window.secaoCobrancaPanel = function(cont){
   const c=concDe(cont.id); if(!c) return h;
   const g=grupoCobranca(cont);
   const temHist=acordosDe(c).length||(c.contatosCobranca||[]).length||c.cobranca;
-  if(!g && !temHist) return h;
+  if(!g && !temHist) return h + resumoPontualidadeCliente(c);
   const saldo=saldoAtraso(c); const st=statusAcordoAtual(c);
   h+=`<hr class="divider" style="margin:14px 0">
     <div class="sp-section-title">Financeiro e cobrança</div>
@@ -4159,6 +4168,7 @@ window.secaoCobrancaPanel = function(cont){
       <div class="info-item"><div class="info-key">Credor</div><div class="info-val">${CREDORES[credorDe(cont)].curto}</div></div>
       <div class="info-item"><div class="info-key">Acordo</div><div class="info-val">${st?(st.tipo==='emdia'?'Em dia':'Descumprido'):'—'}</div></div>
     </div>
+    ${resumoPontualidadeCliente(c)}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
       <button class="btn-save" style="font-size:11px;padding:6px 12px" onclick="openReguaModal('${cont.id}')">⚖ Abrir régua de cobrança</button>
       ${isInadConc(c)?`<button class="btn-sm" style="font-size:11px" onclick="openAcordoModal('${c.id}')">🤝 Renegociar</button>`:''}
@@ -4559,6 +4569,92 @@ window.alterarPermissao = async function(uid,k,v){
     toast('Permissão atualizada ✓ · vale a partir do próximo acesso da pessoa');
   }catch(e){ alert('Erro: '+e.message); renderAdminUsers(); }
 };
+// ── recebimento com data real e pontualidade (nov/2026) ──
+function vencimentoHonorario(p){ return p?.dtCliente ? addDiasUteisISO(p.dtCliente,1) : ''; }
+function atrasoPagamento(p){
+  if(!p?.pago || !p.dataConfirmada || !p.dtPago || !p.dtCliente) return null;
+  return difDias(p.dtPago, vencimentoHonorario(p));
+}
+function pontualidadeDe(lista){
+  const pagos=lista.filter(p=>p.pago);
+  const med=pagos.map(atrasoPagamento).filter(v=>v!==null);
+  const atrasos=med.filter(v=>v>0);
+  return {
+    total:med.length, semData:pagos.length-med.length,
+    emDia:med.filter(v=>v<=0).length,
+    ate7:atrasos.filter(v=>v<=7).length, ate30:atrasos.filter(v=>v>7&&v<=30).length, mais30:atrasos.filter(v=>v>30).length,
+    mediaAtraso: atrasos.length ? Math.round(atrasos.reduce((s,v)=>s+v,0)/atrasos.length) : 0,
+    nAtrasos: atrasos.length,
+  };
+}
+window.cardPontualidade = function(){
+  const todas=[]; let clientesRecorrentes=0;
+  concessoes.forEach(c=>{ const parc=gerarParcelas(c); todas.push(...parc); if(pontualidadeDe(parc).nAtrasos>=2) clientesRecorrentes++; });
+  const pt=pontualidadeDe(todas);
+  const pct=v=>pt.total?Math.round(v/pt.total*100):0;
+  return `<div class="metric-card" style="border:1px solid #C0DD97;background:#F6FBF2;text-align:left">
+      <div class="metric-lbl" style="margin-bottom:6px">Pontualidade dos honorários</div>
+      ${pt.total?`<div style="display:flex;gap:14px;align-items:baseline;margin-bottom:4px"><div><span style="font-size:22px;font-weight:600;color:var(--green)">${pct(pt.emDia)}%</span> <span style="font-size:10px;color:var(--text2)">em dia</span></div><div><span style="font-size:18px;font-weight:600;color:var(--amber)">${pt.mediaAtraso}d</span> <span style="font-size:10px;color:var(--text2)">atraso médio</span></div></div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.6">Até 7 dias: ${pct(pt.ate7)}% · 8 a 30: ${pct(pt.ate30)}% · mais de 30: ${pct(pt.mais30)}%<br>Clientes com 2 ou mais atrasos: ${clientesRecorrentes} · base: ${pt.total} pagamento(s)</div>`
+      :`<div style="font-size:11px;color:var(--text2)">Sem pagamentos com data confirmada ainda.</div>`}
+      ${pt.semData?`<div style="font-size:10px;color:var(--text3);margin-top:3px">${pt.semData} pagamento(s) antigo(s) com data não confirmada, fora do cálculo</div>`:''}
+    </div>`;
+};
+window.resumoPontualidadeCliente = function(c){
+  if(!c) return '';
+  const pt=pontualidadeDe(gerarParcelas(c));
+  if(!pt.total && !pt.semData) return '';
+  if(!pt.total) return `<div style="font-size:11px;color:var(--text3);margin-top:6px">Pontualidade: ${pt.semData} pagamento(s) com data não confirmada</div>`;
+  return `<div style="font-size:11px;color:var(--text2);margin-top:6px">Pontualidade: pagou <strong>${pt.emDia} de ${pt.total}</strong> parcela(s) em dia${pt.nAtrasos?` · atraso médio <strong>${pt.mediaAtraso} dia(s)</strong>`:''}${pt.semData?` · ${pt.semData} sem data confirmada`:''}</div>`;
+};
+window.openRecebimentoModal = function(concId, idx, acordoId, pgIdx){
+  if(!temFinanceiro()) return;
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const cont=contDe(c);
+  let titulo, venc, valor, editavelValor=true;
+  if(acordoId){
+    const a=acordosDe(c).find(x=>x.id===acordoId); const pg=a?.pagamentos?.[pgIdx]; if(!pg||pg.pago) return;
+    titulo=`Pagamento ${pgIdx+1}/${a.pagamentos.length} do acordo`; venc=pg.dt; valor=+pg.valor||0; editavelValor=false;
+  } else {
+    const p=gerarParcelas(c)[idx]; if(!p||p.pago) return;
+    titulo=`Parcela ${p.num}/${gerarParcelas(c).length}`; venc=vencimentoHonorario(p); valor=p.honorario;
+  }
+  window._recCtx={concId, idx, acordoId, pgIdx, venc, valorOriginal:valor};
+  modalCob('cobRecebModal','Registrar recebimento',`
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${escH(cont.nome||c.nomeCliente||'')} · ${titulo} · vencimento ${fmtBR(venc)}</div>
+    <div class="field full"><label>Data em que o pagamento caiu na conta</label><input type="date" id="rc_dt" value="${hojeLocal()}" max="${hojeLocal()}" oninput="recebimentoInfo()"></div>
+    <div class="field full"><label>Valor recebido (R$)</label><input type="number" id="rc_val" step="0.01" min="0" value="${(+valor).toFixed(2)}" ${editavelValor?'':'readonly style="background:var(--surface2)"'} oninput="recebimentoInfo()"></div>
+    <div id="rc_info" style="border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:12px"></div>
+    <div class="btn-row"><button class="btn-sm" onclick="fecharModalCob('cobRecebModal')">Cancelar</button><button class="btn-save" id="rc_btn" onclick="confirmarRecebimento()">Confirmar recebimento</button></div>`, 440);
+  recebimentoInfo();
+};
+window.recebimentoInfo = function(){
+  const ctx=window._recCtx||{}; const dt=$('rc_dt')?.value; const box=$('rc_info'); if(!box) return;
+  if(!dt){ box.innerHTML=''; return; }
+  const d=difDias(dt, ctx.venc);
+  const v=r2($('rc_val')?.value); const dif=r2(v-(ctx.valorOriginal||0));
+  const cor = d<=0 ? ['var(--green-bg)','var(--green)'] : d<=7 ? ['var(--amber-bg)','var(--amber)'] : ['var(--red-bg)','var(--red)'];
+  box.style.background=cor[0]; box.style.color=cor[1];
+  box.innerHTML = (d<=0 ? '✓ Pago em dia' : `⏱ Pago ${d} dia(s) após o vencimento`) + (dif!==0 && !ctx.acordoId ? `<br>Valor ${dif<0?'menor':'maior'} que a parcela em ${fmt(Math.abs(dif))}` : '');
+};
+window.confirmarRecebimento = async function(){
+  const ctx=window._recCtx||{}; const dt=$('rc_dt')?.value; const v=r2($('rc_val')?.value);
+  if(!dt){ alert('Informe a data do pagamento.'); return; }
+  if(dt>hojeLocal()){ alert('A data do pagamento não pode ser futura.'); return; }
+  if(!(v>0)){ alert('Informe o valor recebido.'); return; }
+  const btn=$('rc_btn'); if(btn?.disabled) return; if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  try{
+    if(ctx.acordoId) await confirmarPagamentoAcordo(ctx.concId, ctx.acordoId, ctx.pgIdx, dt);
+    else await marcarPago(ctx.concId, ctx.idx, dt, Math.abs(v-(ctx.valorOriginal||0))<0.005 ? null : v);
+    fecharModalCob('cobRecebModal');
+  }catch(e){ alert('Erro: '+e.message); if(btn){btn.disabled=false;btn.textContent='Confirmar recebimento';} }
+};
+window.marcarDataPagamentoVer = function(i){
+  const ck=$(`fp_pago_${i}`), dt=$(`fp_dtpg_${i}`); if(!ck||!dt) return;
+  if(ck.checked && !dt.value) dt.value=hojeLocal();
+  if(!ck.checked) dt.value='';
+};
+
 
 
 </script>
