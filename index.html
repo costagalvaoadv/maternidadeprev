@@ -605,7 +605,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:18px;font-weight:600;letter-spacing:-.3px">Financeiro</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">Visível apenas para a gestora</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Visível para a gestora e para quem tem acesso financeiro</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="finMesFiltro" onchange="renderFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
@@ -787,6 +787,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
               <option value="editar">Edições</option>
               <option value="excluir">Exclusões</option>
               <option value="mover">Mudanças de etapa</option>
+              <option value="cobranca">Cobrança</option>
             </select>
           </div>
           <div class="alert-card" style="max-height:500px;overflow-y:auto" id="auditLogCard">
@@ -886,6 +887,23 @@ tr:hover td{background:var(--bg);cursor:pointer}
           <select id="f_resporiginal">
             <option value="">— mesmo que o responsável acima —</option>
           </select>
+        </div>
+        <div class="field full"><label>Endereço completo (usado na notificação)</label><input id="f_endereco" placeholder="Rua, nº, bairro, cidade/UF, CEP"></div>
+        <div class="field full"><label>Credor do contrato</label>
+          <select id="f_credor">
+            <option value="">Automático (a partir de 01/11/2026: SIA; antes: pessoa física)</option>
+            <option value="SIA">Jucineide Costa Galvão Sociedade Individual de Advocacia</option>
+            <option value="PF">Jucineide Costa Galvão (pessoa física)</option>
+          </select>
+        </div>
+        <div class="section-sep">Genitora · devedora solidária (somente contrato de adolescente)</div>
+        <div class="frow">
+          <div class="field"><label>Nome da genitora / responsável</label><input id="f_dsnome" placeholder="Nome completo"></div>
+          <div class="field"><label>CPF</label><input id="f_dscpf" placeholder="000.000.000-00" oninput="mascaraCPF(this)"></div>
+        </div>
+        <div class="frow">
+          <div class="field"><label>Endereço da genitora</label><input id="f_dsend" placeholder="Rua, nº, cidade/UF, CEP"></div>
+          <div class="field"><label>Telefone da genitora</label><input id="f_dstel" placeholder="(81) 9 0000-0000" oninput="mascaraTel(this)"></div>
         </div>
         <div class="field full"><label>Link Google Drive</label><input id="f_drive" placeholder="https://drive.google.com/..."></div>
         <div class="field full"><label>Observações</label><textarea id="f_obs" placeholder="Quando nos procurou, situação especial, anotações..."></textarea></div>
@@ -1000,6 +1018,7 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2500);
 }
 function isGestora(){ return currentProfile?.role==='gestora'; }
+function temFinanceiro(){ return isGestora() || !!currentProfile?.acessoFinanceiro; }
 function canEdit(c){
   // todas podem editar, só gestora pode excluir
   return true;
@@ -1154,10 +1173,12 @@ onAuthStateChanged(auth, async user => {
     $('topAvatar').textContent = initials(currentProfile.nome);
     $('topName').textContent = currentProfile.nome;
     $('topRole').textContent = currentProfile.role==='gestora'?'Gestora':currentProfile.role==='operacional'?'Operacional':'Comercial';
-    if(isGestora()){ $('tabAdmin').style.display=''; $('tabFinanceiro').style.display=''; $('btnBackup').style.display=''; }
+    if(isGestora()){ $('tabAdmin').style.display=''; $('btnBackup').style.display=''; }
+    if(temFinanceiro()){ $('tabFinanceiro').style.display=''; }
     await loadUsers();
     subscribeContracts();
-    if(isGestora()){ subscribeConcessoes(); subscribeAudit(); }
+    if(temFinanceiro()) subscribeConcessoes();
+    if(isGestora()) subscribeAudit();
     iniciarPresenca();
     // filtro padrão do kanban = própria usuária (exceto gestora que vê todos)
     if(!isGestora()){
@@ -1242,7 +1263,7 @@ window.renderRelFinanceiro = function(){
   concessoes.forEach(c=>{
     const parc = gerarParcelas(c);
     const cont = contracts.find(x=>x.id===c.contractId)||{};
-    const isInad = parc.some(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
+    const isInad = isInadConc(c);
     parc.forEach(p=>{
       const mes = p.dtCliente ? p.dtCliente.slice(0,7) : '';
       if(mes>=iniMes && mes<=fimMes){
@@ -1252,6 +1273,7 @@ window.renderRelFinanceiro = function(){
           dtPago: p.dtPago,
           mes,
           hon: p.honorario,
+          valorRecebido: p.valorRecebido,
           pago: p.pago,
           parc: p.num,
           total: parc.length,
@@ -1266,7 +1288,7 @@ window.renderRelFinanceiro = function(){
   parcelas.sort((a,b)=>a.dt?.localeCompare(b.dt||'')||0);
 
   const totalEsperado = parcelas.reduce((s,p)=>s+p.hon,0);
-  const totalRecebido = parcelas.filter(p=>p.pago).reduce((s,p)=>s+p.hon,0);
+  const totalRecebido = parcelas.filter(p=>p.pago).reduce((s,p)=>s+(p.valorRecebido!=null?p.valorRecebido:p.hon),0);
   const totalPendente = parcelas.filter(p=>!p.pago&&!p.isInad).reduce((s,p)=>s+p.hon,0);
 
   // inadimplência GLOBAL — independente do filtro de período
@@ -1275,7 +1297,7 @@ window.renderRelFinanceiro = function(){
   const idsInadGlobal = new Set();
   concessoes.forEach(c=>{
     const parc = gerarParcelas(c);
-    const parcAtras = parc.filter(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
+    const parcAtras = parcelasEmAtraso(c);
     if(parcAtras.length){
       idsInadGlobal.add(c.contractId);
       totalInadGlobal += parcAtras.reduce((s,p)=>s+p.honorario,0);
@@ -1430,7 +1452,7 @@ function subscribeAudit(){
 window.renderAuditLog = function(){
   const filtro = $('auditFiltro')?.value||'';
   const logs = filtro ? auditLogs.filter(l=>l.acao===filtro) : auditLogs;
-  const icons = {criar:'📝',editar:'✏️',excluir:'🗑',mover:'↕️'};
+  const icons = {criar:'📝',editar:'✏️',excluir:'🗑',mover:'↕️',cobranca:'💰'};
   const card = $('auditLogCard');
   if(!card) return;
   card.innerHTML = logs.length ? logs.slice(0,100).map(l=>{
@@ -1505,7 +1527,7 @@ window.showView = function(v,el){
   if(v==='dashboard') renderDashboard();
   if(v==='lista') renderList();
   if(v==='relatorios') renderRelatorios();
-  if(v==='financeiro'){ if(isGestora()) renderFinanceiro(); }
+  if(v==='financeiro'){ if(temFinanceiro()) renderFinanceiro(); }
 };
 
 function fmt(v){ return 'R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -1527,6 +1549,7 @@ function gerarParcelas(c){
       honorario:parseFloat(p.honorario)||0,
       pago:p.pago||false,
       dtPago:p.dtPago||'',
+      valorRecebido:(p.valorRecebido!=null&&p.valorRecebido!=='')?parseFloat(p.valorRecebido):null,
     }));
   }
   // retrocompatibilidade com formato antigo
@@ -1579,7 +1602,7 @@ window.calcularHonParc = function(i){
 };
 
 window.openConcessaoModal = function(id){
-  if(!isGestora()) return;
+  if(!temFinanceiro()) return;
   editingConcessaoId=id||null;
   const concedidos=contracts.filter(c=>c.etapa==='concedido');
   const sel=$('fc_cliente');
@@ -1637,7 +1660,7 @@ window.closeConcessaoModal = function(){
 window.closeConcessaoModalBg = function(e){ if(e.target===$('concessaoModalOverlay')) closeConcessaoModal(); };
 
 window.salvarConcessao=async function(){
-  if(!isGestora()) return;
+  if(!temFinanceiro()) return;
   const btnSalvar = document.querySelector('#concessaoModalOverlay .btn-save');
   if(btnSalvar?.disabled) return; // evitar duplo clique
   if(btnSalvar){ btnSalvar.disabled=true; btnSalvar.textContent='Salvando...'; }
@@ -1651,13 +1674,19 @@ window.salvarConcessao=async function(){
   const cont=contracts.find(x=>x.id===cid);
   const n=parseInt($('fc_nparcelas').value)||4;
   const parcelasManual=[];
+  // preserva a data real de pagamento e os campos já existentes de cada parcela
+  const _existentes=(editingConcessaoId ? concessoes.find(x=>x.id===editingConcessaoId)?.parcelasManual : null) || [];
   for(let i=0;i<n;i++){
+    const _old=_existentes[i]||{};
+    const _pg=$(`fp_pago_${i}`)?.checked||false;
     parcelasManual.push({
+      ..._old,
       dt:$(`fp_dt_${i}`)?.value||'',
       valorBenef:parseFloat($(`fp_val_${i}`)?.value)||0,
       honorario:parseFloat($(`fp_hon_${i}`)?.value)||0,
-      pago:$(`fp_pago_${i}`)?.checked||false,
-      dtPago:$(`fp_pago_${i}`)?.checked ? new Date().toISOString().split('T')[0] : '',
+      pago:_pg,
+      dtPago:_pg ? ((_old.pago && _old.dtPago) ? _old.dtPago : new Date().toISOString().split('T')[0]) : '',
+      valorRecebido:_pg ? (_old.valorRecebido ?? null) : null,
     });
   }
   const data={
@@ -1700,8 +1729,8 @@ window.renderKanban = function(){
     if(search && !c.nome?.toLowerCase().includes(search)) return false;
     return true;
   });
-  $('kanbanBoard').innerHTML = COLS.map(col=>{
-    const cards = data.filter(c=>c.etapa===col.id);
+  $('kanbanBoard').innerHTML = colunasKanban().map(col=>{
+    const cards = data.filter(c=>cardNaColuna(c,col.id));
     return `<div class="kb-col">
       <div class="kb-col-head" style="background:${col.bg};color:${col.color}">
         <span>${col.label}</span><span>${cards.length}</span>
@@ -1719,10 +1748,7 @@ window.renderKanban = function(){
           const dotColor = urgDotColor(c);
           // checar inadimplência (só gestora verá no financeiro, mas no card mostra tag)
           const conc = concessoes.find(x=>x.contractId===c.id);
-          const temInadimplencia = conc && (() => {
-            const parc = gerarParcelas(conc);
-            return parc.some(p=>!p.pago && daysUntilDate(p.dtCliente)<-7);
-          })();
+          const temInadimplencia = conc && isInadConc(conc);
           // badge financeiro — só para concedidos
           const faltaFinanceiro = c.etapa==='concedido' && !conc;
           const financeiroOk = c.etapa==='concedido' && conc;
@@ -1738,6 +1764,7 @@ window.renderKanban = function(){
               ${isEncerrado?`<span class="badge" style="background:#1A1A2E;color:#A0C4FF">✓ Encerrado</span>`:''}
               ${alertaProt?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">⏱ ${diasProtocolado(c)}d sem resposta INSS</div>`:''}
               ${temInadimplencia?`<div class="doc-alert-tag" style="background:#FDECEC;color:#B83535;border-color:#F7C1C1">💰 Honorário em atraso</div>`:''}
+              ${badgeCobrancaCard(c)}
               ${faltaFinanceiro?`<div class="doc-alert-tag" style="background:#FFF8E1;color:#856404;border-color:#F0D080">⚠ Falta registrar no financeiro</div>`:''}
               ${financeiroOk?`<div class="doc-alert-tag" style="background:#EBF5ED;color:#27500A;border-color:#C0DD97">✓ Financeiro registrado</div>`:''}
               ${!isBaixa&&!isEncerrado?`<span>📅 DPP: ${c.dpp||'—'} · ${monthsToGo(c.dpp)}</span>`:''}
@@ -1812,6 +1839,8 @@ window.openPanel = function(id){
         ${c.dataIndeferimento?`<div style="margin-top:4px;font-size:11px;color:#FFAD5C">⚖ Indeferido em: <strong>${c.dataIndeferimento}</strong> — encaminhar para recurso</div>`:''}
         ${c.dataEncerramento?`<div style="margin-top:4px;font-size:11px;color:#A0C4FF">✓ Encerrado em: <strong>${c.dataEncerramento}</strong></div>`:''}
         ${c.obs?`<div style="margin-top:8px;font-size:12px;color:var(--text2);background:var(--bg);padding:8px 10px;border-radius:8px;line-height:1.5">${c.obs}</div>`:''}
+        ${c.endereco?`<div style="margin-top:6px;font-size:11px;color:var(--text2)">🏠 ${c.endereco}</div>`:''}
+        ${secaoCobrancaPanel(c)}
       </div>
 
       <hr class="divider">
@@ -2039,7 +2068,7 @@ window.deleteContract = async function(id){
 window.openNewModal = function(){
   editingId=null;
   $('modalTitle').textContent='Novo contrato';
-  ['f_nome','f_tel','f_tel2','f_tel2desc','f_cpf','f_senha','f_dpp','f_dtnasc','f_mesgest','f_fechamento','f_drive','f_obs','f_guia_mes','f_guia_val'].forEach(x=>{if($(x))$(x).value=''});
+  ['f_nome','f_tel','f_tel2','f_tel2desc','f_cpf','f_senha','f_dpp','f_dtnasc','f_mesgest','f_fechamento','f_drive','f_obs','f_guia_mes','f_guia_val','f_endereco','f_credor','f_dsnome','f_dscpf','f_dsend','f_dstel'].forEach(x=>{if($(x))$(x).value=''});
   $('f_tipo').value='qualidade'; $('f_subtipo').value='';
   $('f_tipo').value='qualidade';
   $('f_guia_status').value='';
@@ -2075,6 +2104,12 @@ window.openEditModal = function(id){
   $('f_paga').value=c.paga||'escritorio';
   $('f_guia_status').value=c.guia_status||'';
   $('f_guia_val').value=c.guia_val||'';
+  if($('f_endereco')) $('f_endereco').value=c.endereco||'';
+  if($('f_credor')) $('f_credor').value=c.credor||'';
+  if($('f_dsnome')) $('f_dsnome').value=c.devSolNome||'';
+  if($('f_dscpf')) $('f_dscpf').value=c.devSolCpf||'';
+  if($('f_dsend')) $('f_dsend').value=c.devSolEnd||'';
+  if($('f_dstel')) $('f_dstel').value=c.devSolTel||'';
   $('cpf_alerta').style.display='none';
   toggleGuiaFields();
   $('modalOverlay').classList.add('open');
@@ -2136,6 +2171,8 @@ window.saveContract = async function(){
     dpp:g('f_dpp'), mesgest:g('f_mesgest'), tipo:g('f_tipo'), subtipo:g('f_subtipo')||'',
     resp:g('f_resp'), resporiginal:g('f_resporiginal')||'', drive:g('f_drive'), obs:g('f_obs'), fechamento:g('f_fechamento'),
     guia_mes:g('f_guia_mes'), paga:g('f_paga'), guia_status:g('f_guia_status'), guia_val:g('f_guia_val'),
+    endereco:g('f_endereco'), credor:g('f_credor'),
+    devSolNome:g('f_dsnome'), devSolCpf:g('f_dscpf'), devSolEnd:g('f_dsend'), devSolTel:g('f_dstel'),
   };
   try{
     if(editingId){
@@ -2242,16 +2279,14 @@ function renderCentralContatos(all){
   const inadimplentes = all.filter(c=>{
     const conc = concessoes.find(x=>x.contractId===c.id);
     if(!conc) return false;
-    const parc = gerarParcelas(conc);
-    return parc.some(p=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente)<-7);
+    return isInadConc(conc);
   }).map(c=>{
     const conc = concessoes.find(x=>x.contractId===c.id);
-    const parc = gerarParcelas(conc);
-    const atrasadas = parc.filter(p=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente)<-7);
+    const atrasadas = parcelasEmAtraso(conc);
     return {
       id:c.id, nome:c.nome,
       sub:`${atrasadas.length} parcela(s) em atraso · desde ${atrasadas[0]?.dtCliente||'—'}`,
-      wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)
+      wlink: wLink(c, msgM1(c.id))
     };
   });
 
@@ -2385,10 +2420,7 @@ window.renderDashboard = function(){
   const encerrados = data.filter(c=>c.etapa==='encerrado');
   const pendDocs = ativos.filter(c=>hasPendenciaImprescindivel(c)&&!['concedido','protocolado','indeferido','encerrado'].includes(c.etapa));
   const protSemResposta = ativos.filter(c=>alertaProtocolo(c));
-  const inadimplentes = concessoes.filter(c=>{
-    const parc=gerarParcelas(c);
-    return parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
-  });
+  const inadimplentes = concessoes.filter(c=>isInadConc(c));
   const guiasEscritorio = ativos.filter(c=>
     c.paga==='escritorio' && c.tipo!=='qualidade' &&
     (!c.guia_status||c.guia_status==='') &&
@@ -2416,8 +2448,7 @@ window.renderDashboard = function(){
     ...protSemResposta.map(c=>({col:'#B83535',name:c.nome,sub:`⏱ ${diasProtocolado(c)} dias sem resposta INSS — diligenciar!`,id:c.id})),
     ...inadimplentes.map(c=>{
       const cont=contracts.find(x=>x.id===c.contractId)||{};
-      const parc=gerarParcelas(c);
-      const atrasada=parc.find(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+      const atrasada=parcelasEmAtraso(c)[0];
       return {col:'#B83535',name:cont.nome||c.nomeCliente,sub:`💰 Honorário parc. ${atrasada?.num||'?'} atraso desde ${atrasada?.dtCliente||'—'} — cobrar!`,id:cont.id};
     }),
     ...ativos.filter(c=>daysUntil(c.dpp)<-7&&!['nasceu','protocolado','concedido','indeferido','encerrado','baixa'].includes(c.etapa))
@@ -2439,6 +2470,7 @@ window.renderDashboard = function(){
       const todasMarcadas=parc.every(p=>!!p.pago);
       return todasMarcadas || (honTotal>0 && Math.abs(honTotal-honReceb)<0.05);
     }).map(c=>({col:'#3A7D44',name:c.nome,sub:'✅ Todas as parcelas pagas — processo pode ser encerrado',id:c.id,encerrarId:c.id})),
+    ...alertasCobranca(),
   ];
   $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
     const primeiroNome = a.name.split(' ')[0];
@@ -2571,8 +2603,9 @@ function updateAlertBadge(){
   const data=visibleContracts().filter(c=>!['baixa','encerrado'].includes(c.etapa));
   const n1=data.filter(c=>(c.etapa==='nasceu')||(daysUntil(c.dpp)<=14&&c.etapa!=='nasceu'&&c.etapa!=='protocolado'&&c.etapa!=='concedido')).length;
   const n2=data.filter(c=>alertaProtocolo(c)).length;
-  const n3=concessoes.filter(c=>{const p=gerarParcelas(c);return p.some(x=>!x.pago&&daysUntilDate(x.dtCliente)<-7);}).length;
-  const n=n1+n2+n3;
+  const n3=concessoes.filter(c=>isInadConc(c)).length;
+  const n4=alertasCobranca().filter(a=>a.urg).length;
+  const n=n1+n2+n3+n4;
   $('alertBadgeWrap').style.display=n>0?'flex':'none';
   $('alertBadgeNum').textContent=n;
 }
@@ -3213,6 +3246,7 @@ window.renderAdminUsers = function(){
       <div style="flex:1">
         <div class="alert-name">${u.nome} <span class="badge badge-gray">${u.role}</span></div>
         <div class="alert-sub">${u.email||uid}</div>
+        ${togglesPermissao(uid,u)}
       </div>
     </div>`).join('');
   $('userListCard').innerHTML = html||'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum usuário cadastrado ainda.</div>';
@@ -3227,8 +3261,13 @@ window.createUser = async function(){
   if(!nome||!email||!senha){ alert('Preencha todos os campos.'); return; }
   if(senha.length<6){ alert('A senha deve ter no mínimo 6 caracteres.'); return; }
   try{
-    const cred = await createUserWithEmailAndPassword(auth, email, senha);
-    await setDoc(doc(db,'users',cred.user.uid),{nome,email,role});
+    // instância secundária: cria o login sem derrubar a sessão da gestora
+    const appSec = window._appCadastro || (window._appCadastro = initializeApp(firebaseConfig,'cadastroUsuarios'));
+    const authSec = getAuth(appSec);
+    const cred = await createUserWithEmailAndPassword(authSec, email, senha);
+    await signOut(authSec);
+    await setDoc(doc(db,'users',cred.user.uid),{nome,email,role,acessoFinanceiro:false,cobrancaFormal:false,podeAjuizar:false});
+    await registrarAudit('criar','—',nome,`Usuário criado (${role})`);
     toast('Usuário criado com sucesso ✓');
     ['nu_nome','nu_email','nu_senha'].forEach(x=>$(x).value='');
     await loadUsers();
@@ -3246,7 +3285,7 @@ let unsubConcessoes = null;
 let editingConcessaoId = null;
 
 function subscribeConcessoes(){
-  if(!isGestora()) return;
+  if(!temFinanceiro()) return;
   const q = query(collection(db,'concessoes'), orderBy('createdAt','desc'));
   unsubConcessoes = onSnapshot(q, snap=>{
     concessoes=[];
@@ -3255,11 +3294,12 @@ function subscribeConcessoes(){
     // re-renderizar kanban e dashboard para atualizar badges de financeiro
     renderKanban();
     renderDashboard();
+    updateAlertBadge();
   });
 }
 
 window.renderFinanceiro = function(){
-  if(!isGestora()) return;
+  if(!temFinanceiro()) return;
   const hoje=new Date();
   const finSearchVal = ($('finSearch')?.value||'').toLowerCase().trim();
   const concessoesFiltradas = finSearchVal
@@ -3287,7 +3327,7 @@ window.renderFinanceiro = function(){
   // primeira passagem: identificar inadimplentes
   concessoesFiltradas.forEach(c=>{
     const parc=gerarParcelas(c);
-    const temInad=parc.some(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+    const temInad=isInadConc(c);
     if(temInad) idsInadTemp.add(c.contractId);
   });
 
@@ -3295,10 +3335,12 @@ window.renderFinanceiro = function(){
     const parc=gerarParcelas(c);
     const cont=contracts.find(x=>x.id===c.contractId)||{};
     const isInad=idsInadTemp.has(c.contractId);
+    const cobAc=idxCobertosPorAcordo(c);
     parc.forEach(p=>{
       totalBenefLiq+=p.valorBenef;
-      if(p.pago){ totalReceb+=p.honorario; }
+      if(p.pago){ totalReceb+=(p.valorRecebido!=null?p.valorRecebido:p.honorario); }
       else {
+        if(cobAc.has(p.num-1)) return; // coberta por acordo: entra pelas datas do acordo
         const days=daysUntilDate(p.dtCliente);
         const item={nome:cont.nome||c.nomeCliente,tel:cont.tel||'',parc:p.num,total:parc.length,dt:p.dtCliente,hon:p.honorario,days,cid:c.id,idx:p.num-1,contractId:c.contractId};
         if(isInad){
@@ -3312,8 +3354,20 @@ window.renderFinanceiro = function(){
         }
       }
     });
+    // pagamentos de acordos: em dia entram como a receber; já pagos entram como recebidos
+    acordosDe(c).filter(a=>a.status==='ativo').forEach(a=>{
+      const venc=acordoVencido(a);
+      (a.pagamentos||[]).forEach((pg,k)=>{
+        if(pg.pago){ totalReceb+=(+pg.valor||0); if(venc) totalAResgatar-=(+pg.valor||0); return; }
+        if(venc) return;
+        const days=daysUntilDate(pg.dt);
+        const item={nome:cont.nome||c.nomeCliente,tel:cont.tel||'',parc:k+1,total:a.pagamentos.length,dt:pg.dt,hon:+pg.valor||0,days,cid:c.id,idx:-1,contractId:c.contractId,acordoId:a.id,pgIdx:k};
+        totalHon+=item.hon; totalAberto+=item.hon; honAberto.push(item);
+        if(days>=0&&days<=60) proxReceb.push(item);
+      });
+    });
     if(isInad){
-      const parcAtrasadas=parc.filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7);
+      const parcAtrasadas=parcelasEmAtraso(c);
       const totalAtrasado=parcAtrasadas.reduce((s,p)=>s+p.honorario,0);
       inadimplentes.push({nome:cont.nome||c.nomeCliente,tel:cont.tel||'',contractId:c.contractId,
         parcAtrasadas:parcAtrasadas.length,totalAtrasado,primeiraDt:parcAtrasadas[0]?.dtCliente});
@@ -3351,6 +3405,7 @@ window.renderFinanceiro = function(){
       <div style="font-size:13px;font-weight:600;color:var(--red)">${fmt(totalAResgatar)}</div>
       <div style="font-size:10px;color:var(--text2)">a resgatar</div>
     </div>
+    ${cardMetricaCobranca()}
   `;
 
   // projeção — linha única, 4 cards clean
@@ -3403,9 +3458,9 @@ window.renderFinanceiro = function(){
       <div class="alert-dot" style="background:${cor}"></div>
       <div style="flex:1">
         <div class="alert-name" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${p.contractId}')">${p.nome} <span class="badge ${cls}">${labelDias}</span>${inad?'<span class="badge badge-atrasado" style="margin-left:4px">Inadimplente</span>':''}</div>
-        <div class="alert-sub">Parcela ${p.parc}/${p.total} · ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
+        <div class="alert-sub">${p.acordoId?`<span class="badge badge-blue">🤝 Acordo</span> Pagamento ${p.parc}/${p.total}`:`Parcela ${p.parc}/${p.total}`} · ${p.dt} · Honor.: <strong>${fmt(p.hon)}</strong>${p.tel?' · '+p.tel:''}</div>
       </div>
-      <button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>
+      ${p.acordoId?`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPagamentoAcordo('${p.cid}','${p.acordoId}',${p.pgIdx})">✓ Recebido</button>`:`<button class="btn-sm" style="font-size:11px;flex-shrink:0" onclick="marcarPago('${p.cid}',${p.idx})">✓ Recebido</button>`}
     </div>`;
   }
 
@@ -3478,7 +3533,7 @@ window.renderFinanceiro = function(){
     const honReceb=parc.filter(p=>p.pago).reduce((s,p)=>s+p.honorario,0);
     const honAberto=honTotal-honReceb;
     const proxNaoPago=parc.find(p=>!p.pago);
-    const status=honAberto===0?'pago':proxNaoPago&&daysUntilDate(proxNaoPago.dtCliente)<-7?'atrasado':'ativo';
+    const status=honAberto===0?'pago':isInadConc(c)?'atrasado':'ativo';
     return `<div class="fin-conc-card" onclick="openConcessaoModal('${c.id}')">
       <div class="fin-conc-nome">${cont.nome||c.nomeCliente||'—'}</div>
       <div class="fin-conc-info">
@@ -3492,10 +3547,10 @@ window.renderFinanceiro = function(){
   const inadCard=$('finInadCard');
   if(inadCard) inadCard.innerHTML=inadimplentes.length?inadimplentes.map(i=>{
     const tel = i.tel ? i.tel.replace(/\D/g,'') : '';
-    const wLink = tel ? `https://wa.me/55${tel}?text=${encodeURIComponent(`Olá ${i.nome.split(' ')[0]}! Gostaríamos de tratar sobre o pagamento dos honorários do seu benefício previdenciário que estão em aberto. Podemos conversar? 😊`)}` : '';
+    const wLink = tel ? `https://wa.me/55${tel}?text=${encodeURIComponent(msgM1(i.contractId))}` : '';
     const conc=concessoes.find(x=>x.contractId===i.contractId);
     const cont=contracts.find(x=>x.id===i.contractId)||{};
-    const parcAtras=conc?gerarParcelas(conc).filter(p=>!p.pago&&daysUntilDate(p.dtCliente)<-7):[];
+    const parcAtras=conc?parcelasEmAtraso(conc):[];
     const parcDetalhes=parcAtras.map(p=>`<span style="font-size:11px;background:#FDECEC;border-radius:6px;padding:2px 7px;margin-right:4px;margin-top:4px;display:inline-block">Parcela ${p.num} · ${p.dtCliente} · ${fmt(p.honorario)}</span>`).join('');
     // régua de cobrança
     const ultCob = cont.dataUltimaCobranca;
@@ -3511,11 +3566,13 @@ window.renderFinanceiro = function(){
         <div style="font-weight:600;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="abrirClienteDoFinanceiro('${i.contractId}')">${i.nome}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.parcAtrasadas} parcela(s) · Total: <strong style="color:#B83535">${fmt(i.totalAtrasado)}</strong> · Em atraso desde ${i.primeiraDt||'—'}</div>
         ${i.tel?`<div style="font-size:11px;font-family:monospace;color:var(--text2);margin-top:2px">${i.tel}</div>`:''}
-        <div style="margin-top:5px">${cobTag}</div>
+        <div style="margin-top:5px">${cobTag}${tagReguaInad(conc)}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         ${wLink?`<a href="${wLink}" target="_blank" onclick="mostrarConfirmacaoCobranca('${i.contractId}',this)" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;text-decoration:none;flex:1;justify-content:center">📱 Cobrar via WhatsApp</a>`:''}
         <button class="btn-sm" onclick="openConcessaoModal('${conc?.id||''}')" style="font-size:11px;flex-shrink:0">Ver parcelas</button>
+        <button class="btn-sm" onclick="openAcordoModal('${conc?.id||''}')" style="font-size:11px;flex-shrink:0">🤝 Renegociar</button>
+        <button class="btn-sm" onclick="openReguaModal('${i.contractId}')" style="font-size:11px;flex-shrink:0">⚖ Régua</button>
       </div>
       <div id="confirmCob_${i.contractId}" style="display:none;margin-top:8px;background:#F0FFF4;border:1px solid #C0DD97;border-radius:7px;padding:7px 10px;font-size:11px;color:#27500A;display:none">
         Enviou a mensagem?
@@ -3525,7 +3582,7 @@ window.renderFinanceiro = function(){
     </div>`;
   }).join(''):'<div style="font-size:13px;color:var(--text2);padding:8px 0">Nenhum contrato inadimplente. ✓</div>';
 
-  $('finTableBody').innerHTML=concessoes.map(c=>{
+  if($('finTableBody')) $('finTableBody').innerHTML=concessoes.map(c=>{
     const parc=gerarParcelas(c);
     const cont=contracts.find(x=>x.id===c.contractId)||{};
     const honTotal=parc.reduce((s,p)=>s+p.honorario,0);
@@ -3561,6 +3618,7 @@ window.mostrarConfirmacaoCobranca = function(contractId, linkEl){
 window.registrarCobranca = async function(contractId){
   const hoje = new Date().toISOString().split('T')[0];
   await updateDoc(doc(db,'contracts',contractId),{dataUltimaCobranca: hoje});
+  try{ const _c=concDe(contractId); if(_c) await salvarConc(_c,{contatosCobranca:[...(_c.contatosCobranca||[]),{dt:hojeLocal(),por:currentProfile?.nome||'',canal:'WhatsApp',resultado:'Mensagem de cobrança enviada'}]}, 'Contato de cobrança: WhatsApp · mensagem M1 enviada'); }catch(e){ console.warn(e); }
   const el = document.getElementById('confirmCob_'+contractId);
   if(el){ el.style.background='#EBF5ED'; el.style.borderColor='#3A7D44'; el.innerHTML='<strong style="color:#27500A">✓ Cobrança registrada hoje!</strong>'; }
   toast('Cobrança registrada ✓');
@@ -3603,7 +3661,7 @@ window.abrirClienteDoFinanceiro = function(contractId){
 window.marcarPago=async function(cid,idx){
   const c=concessoes.find(x=>x.id===cid); if(!c) return;
   const parc = gerarParcelas(c).map((p,i)=>i===idx?{...p,pago:true,dtPago:new Date().toISOString().split('T')[0]}:p);
-  const parcelasManual = parc.map(p=>({dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago}));
+  const parcelasManual = parc.map((p,i)=>({...((c.parcelasManual||[])[i]||{}),dt:p.dtCliente,valorBenef:p.valorBenef,honorario:p.honorario,pago:p.pago,dtPago:p.dtPago}));
   await updateDoc(doc(db,'concessoes',cid),{parcelasManual});
   toast('Honorário marcado como recebido ✓');
   // verificar se todas as parcelas estão pagas
@@ -3644,7 +3702,7 @@ window.encerrarProcessoPago=async function(contractId, nomeCliente){
 };
 
 window.exportFinanceiroPDF=function(){
-  if(!isGestora()) return;
+  if(!temFinanceiro()) return;
   const linhas=concessoes.map(c=>{
     const cont=contracts.find(x=>x.id===c.contractId)||{};
     const parc=gerarParcelas(c);
@@ -3665,6 +3723,843 @@ window.exportFinanceiroPDF=function(){
 };
 
 // Iniciar subscriptions ao fazer login — já chamado no onAuthStateChanged
+
+// ══════════════════════════════════════
+// MÓDULO COBRANÇA · inadimplência, acordos e régua de cobrança (POP-FIN-01) · nov/2026
+// ══════════════════════════════════════
+const COB_TOL_ACORDO = 3;        // dias de tolerância após a data do acordo
+const COB_DIAS_FORMAL = 60;      // dias de atraso para a notificação
+const COB_MIN_CONTATOS = 2;      // contatos sem retorno exigidos
+const COB_PRAZO_NOTIF = 10;      // dias corridos da notificação
+const COB_DIAS_EXEC = 30;        // dias após o protesto para a execução
+const COB_INICIO_SIA = '2026-11-01';
+const CREDORES = {
+  SIA:{ nome:'Jucineide Costa Galvão Sociedade Individual de Advocacia',
+        qualif:'JUCINEIDE COSTA GALVÃO SOCIEDADE INDIVIDUAL DE ADVOCACIA, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 68.913.515/0001-16 e registrada na OAB/PE sob o nº 7.684, neste ato representada por sua titular, Jucineide Costa Galvão, advogada inscrita na OAB/PE sob o nº 38.575',
+        pix:'Pix 68.913.515/0001-16 (CNPJ)', curto:'SIA · CNPJ 68.913.515/0001-16' },
+  PF: { nome:'Jucineide Costa Galvão',
+        qualif:'JUCINEIDE COSTA GALVÃO, brasileira, advogada inscrita na OAB/PE sob o nº 38.575',
+        pix:'Pix informado no seu contrato', curto:'Pessoa física · OAB/PE 38.575' },
+};
+const REGUA = [
+  {n:0, nome:'Conferência', checks:[
+    ['hiscre','HISCRE / Meu INSS: o INSS pagou à cliente as parcelas cobradas'],
+    ['extrato','Extrato e Pix conferidos: nenhum pagamento ficou sem baixa'],
+    ['valor','Valor conferido: 30% do valor efetivamente recebido'],
+    ['contrato','Contrato assinado, credor identificado e contatos atualizados'],
+    ['capacidade','Capacidade conferida (maioridade, emancipação ou genitora devedora solidária)'],
+    ['prescricao','Prescrição conferida']]},
+  {n:1, nome:'Cobrança amigável', checks:[]},
+  {n:2, nome:'Notificação', checks:[
+    ['m3','Notificação M3 gerada e assinada pela Gestora'],
+    ['envioDigital','Enviada por WhatsApp e e-mail'],
+    ['envioAR','Carta com AR enviada (ou cartório de títulos e documentos)']]},
+  {n:3, nome:'Protesto', checks:[
+    ['m5','Demonstrativo M5 conferido'],
+    ['m4','Declaração M4 assinada pela Gestora'],
+    ['custo','Análise de custo-benefício feita pela Gestora'],
+    ['ted','Consulta em tese ao TED da OAB/PE realizada (primeiro protesto do escritório)'],
+    ['cenprot','Aceitação do documento confirmada na CENPROT']]},
+  {n:4, nome:'Execução', checks:[
+    ['pecas','Peças reunidas: contrato, demonstrativo, comprovantes da notificação e protesto'],
+    ['ajuizada','Ação ajuizada no JEC do domicílio da devedora']]},
+  {n:5, nome:'Encerramento', checks:[]},
+];
+const CANAIS_CONTATO = ['WhatsApp','Ligação','E-mail','Presencial'];
+const RESULTADOS_CONTATO = ['Sem resposta','Respondeu sem acordo','Prometeu pagar','Pediu nova data','Contestou o débito','Acordo fechado','Mensagem de cobrança enviada'];
+
+// ── utilitários ──
+function podeCobrancaFormal(){ return isGestora() || !!currentProfile?.cobrancaFormal; }
+function podeAjuizarUser(){ return isGestora() || !!currentProfile?.podeAjuizar; }
+function hojeLocal(){ const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
+function addDiasISO(iso,n){ if(!iso) return ''; const d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function addAnosISO(iso,n){ if(!iso) return ''; const d=new Date(iso+'T12:00:00'); d.setFullYear(d.getFullYear()+n); return d.toISOString().slice(0,10); }
+function addDiasUteisISO(iso,n){ if(!iso) return ''; const d=new Date(iso+'T12:00:00'); let k=0; while(k<n){ d.setDate(d.getDate()+1); const w=d.getDay(); if(w!==0&&w!==6) k++; } return d.toISOString().slice(0,10); }
+function difDias(isoA,isoB){ return Math.round((new Date(isoA+'T12:00:00')-new Date(isoB+'T12:00:00'))/864e5); }
+function fmtBR(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
+function escH(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function primeiroNome(n){ return (n||'').trim().split(' ')[0]||''; }
+function r2(v){ return Math.round((+v||0)*100)/100; }
+function agoraISO(){ return new Date().toISOString(); }
+
+// ── dados ──
+function concDe(contractId){ return concessoes.find(x=>x.contractId===contractId); }
+function contDe(c){ return contracts.find(x=>x.id===c?.contractId)||{}; }
+function acordosDe(c){ return Array.isArray(c?.acordos)?c.acordos:[]; }
+function cobDe(c){ return c?.cobranca||{}; }
+function etapaCob(c){ const e=cobDe(c).etapa; return typeof e==='number'?e:0; }
+function acordoVencido(a){ return a.status==='ativo' && (a.pagamentos||[]).some(p=>!p.pago && p.dt && difDias(p.dt, hojeLocal()) < -COB_TOL_ACORDO); }
+function acordoEmDia(a){ return a.status==='ativo' && !acordoVencido(a); }
+function idxCobertosPorAcordo(c){
+  const s=new Set();
+  acordosDe(c).forEach(a=>{ if(a.status==='cumprido' || acordoEmDia(a)) (a.parcelasIdx||[]).forEach(i=>s.add(i)); });
+  return s;
+}
+// REGRA ÚNICA: parcela vencida há mais de 7 dias, sem pagamento e sem acordo em dia
+function parcelasEmAtraso(c){
+  if(!c) return [];
+  const cob=idxCobertosPorAcordo(c);
+  return gerarParcelas(c).filter((p,i)=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente) < -7 && !cob.has(i));
+}
+function isInadConc(c){ return parcelasEmAtraso(c).length>0; }
+function pagoEmAcordosVencidos(c){
+  return acordosDe(c).filter(a=>acordoVencido(a)).reduce((s,a)=>s+(a.pagamentos||[]).filter(p=>p.pago).reduce((x,p)=>x+(+p.valor||0),0),0);
+}
+function saldoAtraso(c){ return r2(Math.max(0, parcelasEmAtraso(c).reduce((s,p)=>s+p.honorario,0) - pagoEmAcordosVencidos(c))); }
+function diasAtrasoMax(c){ const a=parcelasEmAtraso(c); return a.length ? Math.max(...a.map(p=>-daysUntilDate(p.dtCliente))) : 0; }
+function contatosValidos(c){ return (c?.contatosCobranca||[]).filter(k=>k.resultado!=='Acordo fechado'); }
+function acordosDescumpridos(c){ return acordosDe(c).filter(a=>a.status==='descumprido' || acordoVencido(a)).length; }
+function credorDe(cont){ if(cont?.credor==='SIA'||cont?.credor==='PF') return cont.credor; return (!cont?.fechamento || cont.fechamento>=COB_INICIO_SIA) ? 'SIA' : 'PF'; }
+function data18(cont){ return cont?.dtnasc ? addAnosISO(cont.dtnasc,18) : ''; }
+function ehMenor(cont){ const d=data18(cont); return !!d && d>hojeLocal(); }
+function temDevSolidaria(cont){ return !!(cont?.devSolNome && cont.devSolNome.trim()); }
+function alvoCobranca(cont){
+  if(ehMenor(cont) && temDevSolidaria(cont)) return {tipo:'genitora', nome:cont.devSolNome, cpf:cont.devSolCpf||'', end:cont.devSolEnd||'', tel:cont.devSolTel||''};
+  return {tipo:'cliente', nome:cont.nome||'', cpf:cont.cpf||'', end:cont.endereco||'', tel:cont.tel||''};
+}
+function bloqueioMenor(cont){ return ehMenor(cont) && !temDevSolidaria(cont); }
+function prescricaoInfo(c){
+  const parc=gerarParcelas(c).filter(p=>!p.pago && p.dtCliente).map(p=>p.dtCliente).sort();
+  const base=parc[0]||'';
+  const it=cobDe(c).interrupcao;
+  const limite = it?.data ? addAnosISO(it.data,5) : (base ? addAnosISO(base,5) : '');
+  return {base, limite, interrupcao:it||null};
+}
+function quitadoNaCobranca(c){ return !isInadConc(c) && !acordosDe(c).some(a=>a.status==='ativo'); }
+
+// grupo do card no Kanban (somente para quem tem acesso financeiro)
+function grupoCobranca(cont){
+  if(!temFinanceiro() || cont.etapa!=='concedido') return null;
+  const c=concDe(cont.id); if(!c) return null;
+  const cob=cobDe(c);
+  if(cob.etapa>=2 && !cob.encerrada) return 'formal';
+  if(isInadConc(c) || acordosDe(c).some(a=>a.status==='ativo')) return 'inadimplente';
+  return null;
+}
+const VCOLS_COB=[
+  {id:'_inad',   label:'Inadimplente 💰',   bg:'#FDECEC', color:'#B83535'},
+  {id:'_formal', label:'Cobrança formal ⚖', bg:'#F0EEFB', color:'#5B4BAD'},
+];
+function colunasKanban(){
+  if(!temFinanceiro()) return COLS;
+  const i=COLS.findIndex(c=>c.id==='concedido');
+  return [...COLS.slice(0,i+1), ...VCOLS_COB, ...COLS.slice(i+1)];
+}
+function cardNaColuna(c,colId){
+  if(colId==='_inad') return grupoCobranca(c)==='inadimplente';
+  if(colId==='_formal') return grupoCobranca(c)==='formal';
+  if(colId==='concedido') return c.etapa==='concedido' && !grupoCobranca(c);
+  return c.etapa===colId;
+}
+function tagCob(txt,bg,cor,borda){ return `<div class="doc-alert-tag" style="background:${bg};color:${cor};border-color:${borda}">${txt}</div>`; }
+function statusAcordoAtual(c){
+  const ativos=acordosDe(c).filter(a=>a.status==='ativo');
+  if(!ativos.length) return null;
+  const venc=ativos.find(a=>acordoVencido(a));
+  if(venc){ const pg=(venc.pagamentos||[]).find(p=>!p.pago); return {tipo:'vencido', a:venc, prox:pg}; }
+  const a=ativos[0]; const pg=(a.pagamentos||[]).filter(p=>!p.pago).sort((x,y)=>x.dt.localeCompare(y.dt))[0];
+  return {tipo:'emdia', a, prox:pg};
+}
+function pendenteAutorizacao(c){
+  const cob=cobDe(c), e=etapaCob(c);
+  if(e===0 && checksCompletos(c,0) && !cob.validadoEm) return 'validação da conferência';
+  if(e===3 && checksCompletos(c,3) && !cob.autProtesto) return 'autorização do protesto';
+  if(e===3 && cob.protesto?.data && daysUntilDate(addDiasISO(cob.protesto.data,COB_DIAS_EXEC))<=0 && !cob.autExecucao) return 'autorização da execução';
+  return null;
+}
+window.badgeCobrancaCard = function(cont){
+  const g=grupoCobranca(cont); if(!g) return '';
+  const c=concDe(cont.id); const cob=cobDe(c); const e=etapaCob(c);
+  let h='';
+  const saldo=saldoAtraso(c), dias=diasAtrasoMax(c);
+  if(saldo>0) h+=`<span style="font-size:11px;color:#B83535;font-weight:600">${fmt(saldo)} · ${dias}d de atraso</span>`;
+  const st=statusAcordoAtual(c);
+  if(g==='inadimplente'){
+    if(st?.tipo==='emdia') h+=tagCob(`🤝 Acordo em dia${st.prox?' · próx. '+fmtBR(st.prox.dt):''}`,'#EAF2FC','#1D5FA8','#B5D4F4');
+    else if(st?.tipo==='vencido') h+=tagCob('⚠ Acordo descumprido','#FEF3E7','#A0612A','#F0D080');
+    else h+=tagCob(`Etapa ${e} · ${REGUA[e]?.nome||''} · ${contatosValidos(c).length} contato(s)`,'#FDECEC','#B83535','#F7C1C1');
+  } else {
+    let sub='';
+    if(e===2 && cob.prazoNotifIni) sub=` · prazo até ${fmtBR(addDiasISO(cob.prazoNotifIni,COB_PRAZO_NOTIF))}`;
+    if(e===3 && cob.protesto?.data) sub=' · protesto enviado';
+    h+=tagCob(`⚖ Etapa ${e} · ${REGUA[e]?.nome||''}${sub}`,'#F0EEFB','#5B4BAD','#CECBF6');
+    if(quitadoNaCobranca(c)) h+=tagCob('✓ Débito quitado: registrar encerramento','#EBF5ED','#27500A','#C0DD97');
+  }
+  const pend=pendenteAutorizacao(c);
+  if(pend) h+=tagCob(`🔒 Aguarda ${pend}`,'#FFF8E1','#856404','#F0D080');
+  if(bloqueioMenor(cont)) h+=tagCob(`Menor: formal bloqueada até ${fmtBR(data18(cont))}`,'#F0EDE6','#6B6560','#CBC5BB');
+  else if(ehMenor(cont)) h+=tagCob('Cobrança formal: genitora','#F0EDE6','#6B6560','#CBC5BB');
+  return h;
+};
+
+// ── persistência ──
+async function salvarConc(c, data, auditMsg){
+  await updateDoc(doc(db,'concessoes',c.id), data);
+  Object.assign(c, JSON.parse(JSON.stringify(data)));
+  if(auditMsg){ const cont=contDe(c); await registrarAudit('cobranca', c.contractId, cont.nome||c.nomeCliente||'—', auditMsg); }
+}
+async function salvarCob(c, patch, msg){
+  const cob={...(c.cobranca||{}), ...patch};
+  if(msg) cob.historico=[...(cob.historico||[]), {dt:agoraISO(), por:currentProfile?.nome||'', txt:msg}];
+  await salvarConc(c, {cobranca:cob}, msg);
+}
+function checksCompletos(c,n){ const ck=cobDe(c).checks||{}; return (REGUA[n]?.checks||[]).every(([k])=>!!ck[k]); }
+
+// ── modais genéricos ──
+function modalCob(id, titulo, html, largura){
+  let ov=$(id);
+  if(!ov){
+    ov=document.createElement('div'); ov.id=id; ov.className='modal-overlay';
+    ov.addEventListener('click', e=>{ if(e.target===ov) ov.classList.remove('open'); });
+    document.body.appendChild(ov);
+  }
+  const prevScroll = ov.querySelector('.modal')?.scrollTop||0;
+  ov.innerHTML=`<div class="modal" style="max-width:${largura||620}px">
+    <div class="modal-header"><h2>${titulo}</h2><button class="icon-btn" onclick="document.getElementById('${id}').classList.remove('open')">✕</button></div>
+    <div class="modal-body">${html}</div></div>`;
+  ov.classList.add('open');
+  const m=ov.querySelector('.modal'); if(m) m.scrollTop=prevScroll;
+  return ov;
+}
+window.fecharModalCob = function(id){ $(id)?.classList.remove('open'); };
+const CSS_IN='padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);color:var(--text);width:100%';
+const CSS_LBL='font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px';
+
+// ── mensagens (modelos M1 e M2) ──
+function textoParcelas(atr){
+  if(atr.length===1) return {parc:`a parcela ${atr[0].num}`, venc:`com vencimento em ${fmtBR(atr[0].dtCliente)}`, vencida:`vencida em ${fmtBR(atr[0].dtCliente)}`};
+  const nums=atr.map(p=>p.num).join(', '), datas=atr.map(p=>fmtBR(p.dtCliente)).join(', ');
+  return {parc:`as parcelas ${nums}`, venc:`com vencimentos em ${datas}`, vencida:`vencidas em ${datas}`};
+}
+window.msgM1 = function(contractId){
+  const cont=contracts.find(x=>x.id===contractId)||{}; const c=concDe(contractId);
+  const atr=parcelasEmAtraso(c); if(!atr.length) return '';
+  const cred=CREDORES[credorDe(cont)]; const t=textoParcelas(atr);
+  const total=fmt(saldoAtraso(c)); const pn=primeiroNome(cont.nome);
+  const rem=primeiroNome(currentProfile?.nome)||'a equipe';
+  if(!(c?.contatosCobranca||[]).length){
+    return `Olá, ${pn}! Tudo bem? Aqui é ${rem}, do setor financeiro da Costa Galvão Advocacia.\n\nEstou passando para falar sobre os honorários do seu salário-maternidade. Consta em aberto ${t.parc}, ${t.venc}, no valor de ${total}.\n\nSe o pagamento já foi feito, me envie o comprovante que eu dou baixa agora mesmo. Se precisar de uma nova data ou quiser dividir o valor, me avise que encontramos juntas a melhor forma para você.\n\nPagamento somente pelo ${cred.pix}, em nome de ${cred.nome}.`;
+  }
+  return `Olá, ${pn}! Retomando nossa conversa sobre ${t.parc} dos honorários, no valor de ${total}, ${t.vencida}.\n\nQuero muito resolver isso de forma tranquila com você. Podemos combinar uma nova data ou dividir o valor em até 4 vezes. Me responda por aqui para organizarmos.`;
+};
+function msgM2(cont, a){
+  const cred=CREDORES[credorDe(cont)];
+  const linhas=(a.pagamentos||[]).map(p=>`${fmt(p.valor)} em ${fmtBR(p.dt)}`).join('\n');
+  const parcs=(a.parcelasIdx||[]).map(i=>i+1).join(', ');
+  return `Olá, ${primeiroNome(cont.nome)}! Conforme conversamos hoje, fica registrado o acordo para pagamento dos honorários do seu salário-maternidade, referentes à(s) parcela(s) ${parcs}:\n\n${linhas}\nForma de pagamento: ${a.forma}, na chave ${cred.pix.replace(/^Pix /,'')}, em nome de ${cred.nome}.\n\nPara confirmar o acordo, responda esta mensagem com "De acordo".\n\nAgradecemos pela confiança e seguimos à disposição.\nEquipe Costa Galvão Advocacia`;
+}
+function linkWA(tel,msg){ const t=(tel||'').replace(/\D/g,''); return t?`https://wa.me/55${t}?text=${encodeURIComponent(msg)}`:''; }
+function botaoWA(tel,msg,rotulo){ const l=linkWA(tel,msg); return l?`<a href="${l}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 ${rotulo||'WhatsApp'}</a>`:''; }
+
+// ── contatos de cobrança ──
+async function registrarContatoCobranca(contractId, dados){
+  const c=concDe(contractId); if(!c) return;
+  const lista=[...(c.contatosCobranca||[]), {dt:hojeLocal(), por:currentProfile?.nome||'', ...dados}];
+  await salvarConc(c, {contatosCobranca:lista}, `Contato de cobrança: ${dados.canal} · ${dados.resultado}`);
+  await updateDoc(doc(db,'contracts',contractId),{dataUltimaCobranca: hojeLocal()});
+}
+window.openContatoModal = function(contractId){
+  if(!temFinanceiro()) return;
+  const c=concDe(contractId); const cont=contracts.find(x=>x.id===contractId)||{};
+  if(!c){ toast('Registre a concessão no financeiro primeiro.'); return; }
+  const ult=(c.contatosCobranca||[]).slice(-1)[0];
+  const aviso = ult && difDias(hojeLocal(), ult.dt) < 7 ? `<div style="background:#FFF8E1;border:1px solid #F0D080;color:#856404;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px">Último contato em ${fmtBR(ult.dt)}. O POP pede intervalo mínimo de 7 dias entre os contatos.</div>`:'';
+  modalCob('cobContatoModal', `Registrar contato · ${escH(cont.nome||'')}`, `${aviso}
+    <div class="frow">
+      <div class="field"><label>Canal</label><select id="cc_canal">${CANAIS_CONTATO.map(x=>`<option>${x}</option>`).join('')}</select></div>
+      <div class="field"><label>Resultado</label><select id="cc_res">${RESULTADOS_CONTATO.filter(x=>x!=='Mensagem de cobrança enviada').map(x=>`<option>${x}</option>`).join('')}</select></div>
+    </div>
+    <div class="field full"><label>Observação</label><textarea id="cc_obs" placeholder="O que a cliente disse, combinado, próximo passo"></textarea></div>
+    <div class="btn-row"><button class="btn-sm" onclick="fecharModalCob('cobContatoModal')">Cancelar</button><button class="btn-save" id="cc_btn" onclick="salvarContatoModal('${contractId}')">Salvar contato</button></div>`, 480);
+};
+window.salvarContatoModal = async function(contractId){
+  const btn=$('cc_btn'); if(btn?.disabled) return; if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  try{
+    await registrarContatoCobranca(contractId,{canal:$('cc_canal').value, resultado:$('cc_res').value, obs:$('cc_obs').value.trim()});
+    fecharModalCob('cobContatoModal'); toast('Contato registrado ✓');
+    if($('cobReguaModal')?.classList.contains('open')) openReguaModal(contractId);
+  }catch(e){ alert('Erro: '+e.message); if(btn){btn.disabled=false;btn.textContent='Salvar contato';} }
+};
+
+// ── acordos (renegociação em até 4 vezes) ──
+window.openAcordoModal = function(concId){
+  if(!temFinanceiro()) return;
+  const c=concessoes.find(x=>x.id===concId); if(!c){ toast('Concessão não encontrada.'); return; }
+  const cont=contDe(c);
+  const cobertos=idxCobertosPorAcordo(c);
+  const parc=gerarParcelas(c);
+  const atrIdx=new Set(parcelasEmAtraso(c).map(p=>p.num-1));
+  const opc=parc.map((p,i)=>({p,i})).filter(({p,i})=>!p.pago && !cobertos.has(i));
+  if(!opc.length){ toast('Não há parcelas em aberto para renegociar.'); return; }
+  const parcial=pagoEmAcordosVencidos(c);
+  modalCob('cobAcordoModal', `Renegociar honorários · ${escH(cont.nome||c.nomeCliente||'')}`, `
+    <span style="${CSS_LBL}">Parcelas incluídas no acordo</span>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">
+      ${opc.map(({p,i})=>`<label style="display:flex;align-items:center;gap:8px;font-size:12px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;background:${atrIdx.has(i)?'#FFF5F5':'var(--bg)'};cursor:pointer">
+        <input type="checkbox" class="ac_parc" value="${i}" data-hon="${p.honorario}" ${atrIdx.has(i)?'checked':''} onchange="acordoRecalc()">
+        Parcela ${p.num} · venc. ${fmtBR(p.dtCliente)} · <strong>${fmt(p.honorario)}</strong>${atrIdx.has(i)?' <span class="badge badge-red">em atraso</span>':''}</label>`).join('')}
+    </div>
+    ${parcial>0?`<div style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Já recebido em acordo anterior descumprido: <strong>${fmt(parcial)}</strong> (abatido do valor original).</div>`:''}
+    <div class="frow">
+      <div class="field"><label>Valor original</label><input id="ac_orig" readonly style="background:var(--surface2)"></div>
+      <div class="field"><label>Valor acordado (R$)</label><input id="ac_valor" type="number" step="0.01" min="0" oninput="acordoGerarPg(true)"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Forma de pagamento</label><select id="ac_forma"><option>Pix</option><option>Transferência</option><option>Dinheiro</option><option>Depósito</option></select></div>
+      <div class="field"><label>Nº de pagamentos</label><select id="ac_n" onchange="acordoGerarPg(true)"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+    </div>
+    <span style="${CSS_LBL}">Novas datas e valores</span>
+    <div id="ac_pgs" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+    <div id="ac_soma" style="font-size:11px;margin-bottom:10px"></div>
+    <div class="field full"><label>Descrição do contato</label><textarea id="ac_desc" placeholder="Como foi a conversa, motivo do atraso, o que foi combinado"></textarea></div>
+    <div id="ac_err" style="display:none;background:var(--red-bg);color:var(--red);border:1px solid #F7C1C1;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px"></div>
+    <div class="btn-row"><button class="btn-sm" onclick="fecharModalCob('cobAcordoModal')">Cancelar</button><button class="btn-save" id="ac_btn" onclick="salvarAcordo('${c.id}')">Salvar e enviar confirmação</button></div>`, 560);
+  window._acParcial=parcial;
+  acordoRecalc();
+};
+window.acordoRecalc = function(){
+  const sel=[...document.querySelectorAll('.ac_parc:checked')];
+  const orig=r2(Math.max(0, sel.reduce((s,el)=>s+(+el.dataset.hon||0),0)-(window._acParcial||0)));
+  if($('ac_orig')) $('ac_orig').value=fmt(orig);
+  if($('ac_valor')) $('ac_valor').value=orig.toFixed(2);
+  acordoGerarPg(true);
+};
+window.acordoGerarPg = function(redistribuir){
+  const n=parseInt($('ac_n')?.value)||1; const total=r2($('ac_valor')?.value);
+  const box=$('ac_pgs'); if(!box) return;
+  const ant=[...box.querySelectorAll('.ac_pg_dt')].map(x=>x.value);
+  const base=r2(Math.floor(total/n*100)/100);
+  let html='';
+  for(let k=0;k<n;k++){
+    const v = k===n-1 ? r2(total-base*(n-1)) : base;
+    const dt = ant[k] || addDiasISO(hojeLocal(), 7+15*k);
+    html+=`<div style="display:grid;grid-template-columns:24px 1fr 1fr;gap:8px;align-items:center">
+      <span style="font-size:12px;font-weight:700;color:var(--accent);text-align:center">${k+1}</span>
+      <input type="date" class="ac_pg_dt" value="${dt}" style="${CSS_IN}">
+      <input type="number" class="ac_pg_val" step="0.01" min="0" value="${v.toFixed(2)}" oninput="acordoSoma()" style="${CSS_IN}"></div>`;
+  }
+  box.innerHTML=html; acordoSoma();
+};
+window.acordoSoma = function(){
+  const soma=r2([...document.querySelectorAll('.ac_pg_val')].reduce((s,x)=>s+(+x.value||0),0));
+  const total=r2($('ac_valor')?.value);
+  const ok=Math.abs(soma-total)<0.01;
+  if($('ac_soma')) $('ac_soma').innerHTML=`Soma das datas: <strong style="color:${ok?'var(--green)':'var(--red)'}">${fmt(soma)}</strong>${ok?' ✓':` · precisa ser igual ao valor acordado (${fmt(total)})`}`;
+  return ok;
+};
+window.salvarAcordo = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const err=m=>{ const e=$('ac_err'); e.textContent=m; e.style.display='block'; };
+  const idx=[...document.querySelectorAll('.ac_parc:checked')].map(x=>+x.value);
+  const dts=[...document.querySelectorAll('.ac_pg_dt')].map(x=>x.value);
+  const vals=[...document.querySelectorAll('.ac_pg_val')].map(x=>r2(x.value));
+  const valorAc=r2($('ac_valor').value); const desc=$('ac_desc').value.trim();
+  if(!idx.length) return err('Selecione ao menos uma parcela.');
+  if(!(valorAc>0)) return err('Informe o valor acordado.');
+  if(dts.some(d=>!d)) return err('Preencha todas as datas do acordo.');
+  if(dts.some(d=>d<hojeLocal())) return err('As datas do acordo precisam ser de hoje em diante.');
+  if(vals.some(v=>!(v>0))) return err('Todos os pagamentos precisam ter valor.');
+  if(!acordoSoma()) return err('A soma das datas precisa ser igual ao valor acordado.');
+  if(!desc) return err('Descreva o contato com a cliente.');
+  const btn=$('ac_btn'); if(btn?.disabled) return; btn.disabled=true; btn.textContent='Salvando...';
+  try{
+    const parc=gerarParcelas(c);
+    const orig=r2(Math.max(0, idx.reduce((s,i)=>s+(parc[i]?.honorario||0),0)-(window._acParcial||0)));
+    const acordos=acordosDe(c).map(a=>acordoVencido(a)?{...a,status:'descumprido',descumpridoEm:hojeLocal()}:a);
+    const novo={id:'ac'+Date.now().toString(36), criadoEm:hojeLocal(), criadoPor:currentProfile?.nome||'', parcelasIdx:idx.sort((a,b)=>a-b),
+      valorOriginal:orig, valorAcordado:valorAc, forma:$('ac_forma').value, descricao:desc,
+      pagamentos:dts.map((d,k)=>({dt:d, valor:vals[k], pago:false, dtPago:''})), status:'ativo', creditoAnterior:r2(window._acParcial||0)};
+    acordos.push(novo);
+    const dif=r2(valorAc-orig);
+    await salvarConc(c,{acordos}, `Acordo criado: ${fmt(valorAc)} em ${dts.length}x (${dts.map(fmtBR).join(', ')})${dif!==0?` · ${dif<0?'desconto':'acréscimo'} de ${fmt(Math.abs(dif))}`:''}`);
+    const cont=contDe(c);
+    const contatos=[...(c.contatosCobranca||[]), {dt:hojeLocal(), por:currentProfile?.nome||'', canal:'WhatsApp', resultado:'Acordo fechado', obs:desc}];
+    await salvarConc(c,{contatosCobranca:contatos});
+    fecharModalCob('cobAcordoModal');
+    const alvo=alvoCobranca(cont);
+    modalCob('cobAcordoOk','Acordo registrado ✓',`
+      <p style="font-size:13px;line-height:1.6;margin-bottom:12px">Envie agora a confirmação (modelo M2). Quando a cliente responder <strong>"De acordo"</strong>, marque a confirmação na régua: é ela que comprova o reconhecimento da dívida.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">${botaoWA(cont.tel,msgM2(cont,novo),'Enviar confirmação à cliente')}${alvo.tipo==='genitora'?botaoWA(alvo.tel,msgM2(cont,novo),'Enviar à genitora'):''}</div>
+      <div class="btn-row" style="margin-top:14px"><button class="btn-save" onclick="fecharModalCob('cobAcordoOk')">Concluir</button></div>`,460);
+    toast('Acordo salvo ✓');
+  }catch(e){ err('Erro ao salvar: '+e.message); btn.disabled=false; btn.textContent='Salvar e enviar confirmação'; }
+};
+window.confirmarAcordoCliente = async function(concId, acordoId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const acordos=acordosDe(c).map(a=>a.id===acordoId?{...a, confirmadoEm:hojeLocal()}:a);
+  await salvarConc(c,{acordos}, 'Cliente respondeu "De acordo" (reconhecimento da dívida)');
+  if(!cobDe(c).interrupcao) await salvarCob(c,{interrupcao:{data:hojeLocal(), ato:'Reconhecimento da dívida pela devedora ("De acordo")'}}, 'Prescrição interrompida pelo reconhecimento da dívida');
+  toast('Confirmação registrada ✓');
+  openReguaModal(c.contractId);
+};
+window.cancelarAcordo = async function(concId, acordoId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(!confirm('Cancelar este acordo? As parcelas voltam a contar como em atraso.')) return;
+  const acordos=acordosDe(c).map(a=>a.id===acordoId?{...a,status:'cancelado',canceladoEm:hojeLocal()}:a);
+  await salvarConc(c,{acordos},'Acordo cancelado');
+  toast('Acordo cancelado'); openReguaModal(c.contractId);
+};
+window.marcarPagamentoAcordo = async function(concId, acordoId, k){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const a=acordosDe(c).find(x=>x.id===acordoId); if(!a) return;
+  const pg=a.pagamentos[k]; if(!pg||pg.pago) return;
+  const dtPg=prompt(`Confirmar o recebimento de ${fmt(pg.valor)} (pagamento ${k+1} de ${a.pagamentos.length} do acordo).\n\nData do recebimento (AAAA-MM-DD):`, hojeLocal());
+  if(dtPg===null) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dtPg)){ alert('Data inválida. Use o formato AAAA-MM-DD.'); return; }
+  const pagamentos=a.pagamentos.map((p,i)=>i===k?{...p,pago:true,dtPago:dtPg}:p);
+  const cumprido=pagamentos.every(p=>p.pago);
+  let novoA={...a, pagamentos};
+  const data={};
+  if(cumprido){
+    novoA.status='cumprido'; novoA.cumpridoEm=dtPg;
+    // marca as parcelas originais como recebidas na data real, com o valor efetivamente recebido
+    const base=c.parcelasManual||[];
+    const somaHon=(a.parcelasIdx||[]).reduce((s,i)=>s+(+base[i]?.honorario||0),0)||1;
+    const totalRec=r2((+a.valorAcordado||0)+(+a.creditoAnterior||0));
+    let acumulado=0;
+    data.parcelasManual=base.map((p,i)=>{
+      if(!(a.parcelasIdx||[]).includes(i)) return p;
+      const ultimo=i===Math.max(...a.parcelasIdx);
+      const v= ultimo ? r2(totalRec-acumulado) : r2(totalRec*(+p.honorario||0)/somaHon);
+      acumulado=r2(acumulado+v);
+      return {...p, pago:true, dtPago:dtPg, valorRecebido:v, viaAcordo:a.id};
+    });
+  }
+  data.acordos=acordosDe(c).map(x=>x.id===acordoId?novoA:x);
+  await salvarConc(c,data, `Pagamento ${k+1}/${a.pagamentos.length} do acordo recebido: ${fmt(pg.valor)}${cumprido?' · acordo cumprido':''}`);
+  toast(cumprido?'Acordo cumprido ✓':'Pagamento do acordo registrado ✓');
+  if($('cobReguaModal')?.classList.contains('open')) openReguaModal(c.contractId);
+  if(cumprido){
+    const cont=contDe(c);
+    const todas=(data.parcelasManual||[]).every(p=>p.pago);
+    if(todas && cont.etapa==='concedido') await encerrarProcessoPago(cont.id, cont.nome);
+  }
+};
+
+// ── seção no painel lateral ──
+window.secaoCobrancaPanel = function(cont){
+  let h='';
+  if(temDevSolidaria(cont)){
+    h+=`<div style="margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6">
+      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em">Genitora · devedora solidária</div>
+      <strong>${escH(cont.devSolNome)}</strong>${cont.devSolCpf?' · CPF '+escH(cont.devSolCpf):''}<br>${escH(cont.devSolEnd||'')}${cont.devSolTel?' · '+escH(cont.devSolTel):''}
+      ${ehMenor(cont)?`<div style="color:var(--amber);font-size:11px;margin-top:2px">Cliente menor até ${fmtBR(data18(cont))}: cobrança formal dirigida à genitora.</div>`:''}</div>`;
+  }
+  if(!temFinanceiro()) return h;
+  const c=concDe(cont.id); if(!c) return h;
+  const g=grupoCobranca(cont);
+  const temHist=acordosDe(c).length||(c.contatosCobranca||[]).length||c.cobranca;
+  if(!g && !temHist) return h;
+  const saldo=saldoAtraso(c); const st=statusAcordoAtual(c);
+  h+=`<hr class="divider" style="margin:14px 0">
+    <div class="sp-section-title">Financeiro e cobrança</div>
+    <div class="info-grid">
+      <div class="info-item"><div class="info-key">Em atraso</div><div class="info-val" style="color:${saldo>0?'var(--red)':'var(--green)'}">${fmt(saldo)}${saldo>0?` · ${diasAtrasoMax(c)}d`:''}</div></div>
+      <div class="info-item"><div class="info-key">Régua</div><div class="info-val">${g||cobDe(c).etapa>0?`Etapa ${etapaCob(c)} · ${REGUA[etapaCob(c)].nome}`:'—'}</div></div>
+      <div class="info-item"><div class="info-key">Credor</div><div class="info-val">${CREDORES[credorDe(cont)].curto}</div></div>
+      <div class="info-item"><div class="info-key">Acordo</div><div class="info-val">${st?(st.tipo==='emdia'?'Em dia':'Descumprido'):'—'}</div></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn-save" style="font-size:11px;padding:6px 12px" onclick="openReguaModal('${cont.id}')">⚖ Abrir régua de cobrança</button>
+      ${isInadConc(c)?`<button class="btn-sm" style="font-size:11px" onclick="openAcordoModal('${c.id}')">🤝 Renegociar</button>`:''}
+      <button class="btn-sm" style="font-size:11px" onclick="openContatoModal('${cont.id}')">📝 Registrar contato</button>
+    </div>`;
+  return h;
+};
+
+// ── régua de cobrança (modal) ──
+window.openReguaModal = function(contractId){
+  if(!temFinanceiro()) return;
+  const cont=contracts.find(x=>x.id===contractId); const c=concDe(contractId);
+  if(!cont||!c){ toast('Registre a concessão no financeiro primeiro.'); return; }
+  const cob=cobDe(c); const e=etapaCob(c); const ck=cob.checks||{};
+  const atr=parcelasEmAtraso(c); const saldo=saldoAtraso(c);
+  const alvo=alvoCobranca(cont); const cred=CREDORES[credorDe(cont)];
+  const presc=prescricaoInfo(c);
+  const podeFormal=podeCobrancaFormal();
+  const ger=isGestora();
+  const quitado=quitadoNaCobranca(c);
+
+  const stepper=REGUA.map(r=>{
+    const cor = r.n<e ? 'var(--green)' : r.n===e ? '#5B4BAD' : 'var(--border)';
+    return `<div style="flex:1;text-align:center"><div style="height:5px;border-radius:3px;background:${cor};margin-bottom:5px"></div><div style="font-size:10px;color:${r.n===e?'#5B4BAD':'var(--text3)'};font-weight:${r.n===e?600:400}">${r.n} · ${r.nome}</div></div>`;
+  }).join('');
+
+  const checkHTML=(n)=>(REGUA[n].checks||[]).map(([k,l])=>`
+    <label style="display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:${ck[k]?'var(--green-bg)':'var(--bg)'};font-size:12px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" ${ck[k]?'checked':''} onchange="cobToggleCheck('${c.id}','${k}',this.checked)" style="margin-top:2px">
+      <span>${l}${ck[k]?`<span style="display:block;font-size:10px;color:var(--text3)">por ${escH(ck[k].por||'')} em ${fmtBR(ck[k].dt)}</span>`:''}</span></label>`).join('');
+  const linkHTML=(k,rot)=>`<div style="display:flex;gap:6px;margin:4px 0 8px"><input id="lk_${k}" value="${escH((cob.links||{})[k]||'')}" placeholder="${rot}" style="${CSS_IN}"><button class="btn-sm" onclick="cobSalvarLink('${c.id}','${k}')">Salvar</button>${(cob.links||{})[k]?`<a class="btn-sm" href="${escH(cob.links[k])}" target="_blank" style="text-decoration:none">Abrir</a>`:''}</div>`;
+  const trava=(motivos)=>motivos.length?`<div style="font-size:11px;color:#856404;background:#FFF8E1;border:1px solid #F0D080;border-radius:8px;padding:7px 10px;margin-top:8px">🔒 Para avançar: ${motivos.join(' · ')}</div>`:'';
+  let corpo='';
+
+  if(e===0){
+    const mot=[]; if(!checksCompletos(c,0)) mot.push('marcar todos os itens'); if(!cob.validadoEm) mot.push('validação da Gestora');
+    corpo=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">A cobrança só começa com todos os itens confirmados (POP, Etapa 0). Se a cliente não recebeu a parcela do INSS, não existe débito daquela parcela.</div>${checkHTML(0)}
+      ${cob.validadoEm?`<div style="font-size:12px;color:var(--green)">✓ Validada por ${escH(cob.validadoPor||'')} em ${fmtBR(cob.validadoEm)}</div>`:''}
+      ${trava(mot)}
+      <div class="btn-row" style="margin-top:10px">${ger&&checksCompletos(c,0)&&!cob.validadoEm?`<button class="btn-save" onclick="cobValidarConferencia('${c.id}')">Validar conferência e iniciar cobrança amigável</button>`:''}${!ger&&checksCompletos(c,0)&&!cob.validadoEm?'<span style="font-size:12px;color:var(--text2)">Aguardando validação da Gestora.</span>':''}</div>`;
+  }
+  if(e===1){
+    const nCont=contatosValidos(c).length, dias=diasAtrasoMax(c), desc=acordosDescumpridos(c);
+    const ok=(dias>=COB_DIAS_FORMAL && nCont>=COB_MIN_CONTATOS) || desc>=2;
+    const mot=[]; if(!ok){ if(desc<2) mot.push(`${COB_DIAS_FORMAL} dias de atraso (hoje: ${dias}) e ${COB_MIN_CONTATOS} contatos sem retorno (hoje: ${nCont}), ou o 2º acordo descumprido (hoje: ${desc})`); }
+    if(!podeFormal) mot.push('permissão de cobrança formal');
+    corpo=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Contato só com a cliente${alvo.tipo==='genitora'?' e a genitora':''}, pelos números oficiais, no máximo 1 vez por semana. Sempre oferecer renegociação em até 4 vezes.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${botaoWA(cont.tel,msgM1(cont.id),(c.contatosCobranca||[]).length?'M1 · 2º contato':'M1 · 1º contato')}${alvo.tipo==='genitora'?botaoWA(alvo.tel,msgM1(cont.id),'M1 · genitora'):''}
+        <button class="btn-sm" onclick="openContatoModal('${cont.id}')">📝 Registrar contato</button>${atr.length?`<button class="btn-sm" onclick="openAcordoModal('${c.id}')">🤝 Renegociar</button>`:''}</div>
+      ${trava(mot)}
+      <div class="btn-row" style="margin-top:10px">${ok&&podeFormal?`<button class="btn-save" onclick="cobAvancar('${c.id}',2)">Iniciar notificação extrajudicial</button>`:''}</div>`;
+  }
+  if(e===2){
+    const ini=cob.prazoNotifIni, fim=ini?addDiasISO(ini,COB_PRAZO_NOTIF):'';
+    const vencido=fim && hojeLocal()>fim;
+    const mot=[]; if(!checksCompletos(c,2)) mot.push('marcar os envios'); if(!(cob.links||{}).notif) mot.push('link dos comprovantes no Drive'); if(!ini) mot.push('data de recebimento da notificação'); else if(!vencido) mot.push(`aguardar o fim do prazo (${fmtBR(fim)})`);
+    corpo=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="btn-sm" onclick="gerarDocCob('${c.id}','M3')">📄 Gerar notificação M3</button></div>
+      ${checkHTML(2)}
+      <span style="${CSS_LBL}">Comprovantes no Drive (prints, e-mail, AR ou certidão)</span>${linkHTML('notif','https://drive.google.com/...')}
+      <span style="${CSS_LBL}">Data em que a cliente recebeu a notificação</span>
+      <div style="display:flex;gap:6px;margin-bottom:6px"><input type="date" id="cob_ini" value="${ini||''}" style="${CSS_IN};max-width:180px"><button class="btn-sm" onclick="cobSalvarPrazo('${c.id}')">Salvar</button>${fim?`<span style="font-size:12px;align-self:center;color:${vencido?'var(--red)':'var(--text2)'}">Prazo de ${COB_PRAZO_NOTIF} dias: até ${fmtBR(fim)}${vencido?' · vencido':''}</span>`:''}</div>
+      ${trava(mot)}
+      <div class="btn-row" style="margin-top:10px">${!mot.length&&podeFormal?`<button class="btn-save" onclick="cobAvancar('${c.id}',3)">Seguir para o protesto</button>`:''}</div>`;
+  }
+  if(e===3){
+    const prot=cob.protesto||{};
+    const bloq=bloqueioMenor(cont);
+    const mot=[]; if(bloq) mot.push(`devedora menor sem genitora solidária: bloqueado até ${fmtBR(data18(cont))}`); if(!checksCompletos(c,3)) mot.push('marcar os itens'); if(!cob.autProtesto) mot.push('autorização da Gestora');
+    const execData=prot.data?addDiasISO(prot.data,COB_DIAS_EXEC):'';
+    const motExec=[]; if(!prot.data) motExec.push('registrar o envio do protesto'); else if(hojeLocal()<execData) motExec.push(`aguardar ${COB_DIAS_EXEC} dias do protesto (${fmtBR(execData)})`); if(!cob.autExecucao) motExec.push('autorização da execução pela Gestora'); if(!cob.advogado) motExec.push('advogado responsável');
+    const advs=Object.entries(usersMap).filter(([,u])=>u.role==='gestora'||u.podeAjuizar);
+    corpo=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Protesto no tabelionato da cidade da devedora, enviado pela CENPROT${alvo.tipo==='genitora'?`, <strong>somente contra a genitora ${escH(alvo.nome)}</strong>`:''}. Negativação direta só como reserva, nunca as duas para a mesma dívida.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="btn-sm" onclick="gerarDocCob('${c.id}','M5')">📊 Demonstrativo M5</button><button class="btn-sm" onclick="gerarDocCob('${c.id}','M4')">📄 Declaração M4</button></div>
+      ${checkHTML(3)}
+      ${cob.autProtesto?`<div style="font-size:12px;color:var(--green);margin:4px 0">✓ Protesto autorizado por ${escH(cob.autProtesto.por)} em ${fmtBR(cob.autProtesto.dt)}</div>`:''}
+      ${trava(mot)}
+      <div class="btn-row" style="margin-top:8px">${ger&&!bloq&&checksCompletos(c,3)&&!cob.autProtesto?`<button class="btn-save" onclick="cobAutorizar('${c.id}','autProtesto','Protesto autorizado')">Autorizar protesto</button>`:''}</div>
+      ${cob.autProtesto?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <span style="${CSS_LBL}">Registro do protesto</span>
+        <div class="frow"><div class="field"><label>Data do envio</label><input type="date" id="pr_data" value="${prot.data||''}"></div><div class="field"><label>Tabelionato (cidade/UF)</label><input id="pr_tab" value="${escH(prot.tabelionato||'')}"></div></div>
+        <div class="frow"><div class="field"><label>Protocolo</label><input id="pr_prot" value="${escH(prot.protocolo||'')}"></div><div class="field"><label>Situação</label><select id="pr_sit">${['Apontado','Lavrado','Pago no cartório','Sustado','Desistência'].map(x=>`<option ${prot.situacao===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+        <div class="btn-row"><button class="btn-sm" onclick="cobSalvarProtesto('${c.id}')">Salvar protesto</button></div>
+        <div style="margin-top:10px"><span style="${CSS_LBL}">Execução</span>
+          <div class="field"><label>Advogado responsável</label><select id="ex_adv" onchange="cobSalvarAdvogado('${c.id}')"><option value="">Selecione</option>${advs.map(([uid,u])=>`<option value="${uid}" ${cob.advogado===uid?'selected':''}>${escH(u.nome)}</option>`).join('')}</select></div>
+          ${cob.autExecucao?`<div style="font-size:12px;color:var(--green)">✓ Execução autorizada por ${escH(cob.autExecucao.por)} em ${fmtBR(cob.autExecucao.dt)}</div>`:''}
+          ${trava(motExec)}
+          <div class="btn-row" style="margin-top:8px">${ger&&prot.data&&hojeLocal()>=execData&&!cob.autExecucao?`<button class="btn-sm" onclick="cobAutorizar('${c.id}','autExecucao','Execução autorizada')">Autorizar execução</button>`:''}${!motExec.length&&podeFormal?`<button class="btn-save" onclick="cobAvancar('${c.id}',4)">Seguir para a execução</button>`:''}</div>
+        </div></div>`:''}`;
+  }
+  if(e===4){
+    const ex=cob.execucao||{};
+    corpo=`<div style="font-size:12px;color:var(--text2);margin-bottom:8px">JEC do domicílio da devedora, pelo PJe, até 40 salários mínimos. Pedir pesquisa e penhora de valores e a inclusão em cadastros pelo juízo (art. 782, §3º, do CPC).${alvo.tipo==='genitora'?' Executar somente a genitora devedora solidária.':''}</div>
+      <div style="font-size:12px;margin-bottom:8px">Advogado responsável: <strong>${escH(usersMap[cob.advogado]?.nome||'—')}</strong>${podeAjuizarUser()?'':' · <span style="color:var(--amber)">você não tem a permissão "Pode ajuizar"</span>'}</div>
+      ${checkHTML(4)}
+      <div class="frow"><div class="field"><label>Nº do processo</label><input id="ex_proc" value="${escH(ex.processo||'')}"></div><div class="field"><label>Data do ajuizamento</label><input type="date" id="ex_data" value="${ex.data||''}"></div></div>
+      <div class="field full"><label>Situação</label><select id="ex_sit">${['Em preparação','Ajuizada','Acordo judicial','Recebido','Arquivada'].map(x=>`<option ${ex.situacao===x?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="btn-row"><button class="btn-sm" onclick="cobSalvarExecucao('${c.id}')">Salvar execução</button></div>`;
+  }
+  if(e===5 || (e>=2 && quitado)){
+    const prot=cob.protesto||{};
+    const quit=cob.quitacao||{};
+    const precisaAnuencia=!!prot.data && prot.situacao!=='Pago no cartório' && prot.situacao!=='Desistência';
+    const prazoAn=quit.data?addDiasUteisISO(quit.data,5):'';
+    corpo+=`<div style="margin-top:${e===5?0:12}px;${e===5?'':'padding-top:12px;border-top:1px solid var(--border);'}">
+      <span style="${CSS_LBL}">Encerramento da cobrança</span>
+      ${quitado?`<div style="font-size:12px;color:var(--green);margin-bottom:8px">✓ Não há débito em atraso nem acordo em andamento.</div>`:`<div style="font-size:12px;color:var(--red);margin-bottom:8px">Ainda há ${fmt(saldo)} em atraso.</div>`}
+      <div class="frow"><div class="field"><label>Data da quitação</label><input type="date" id="qt_data" value="${quit.data||''}"></div>
+        ${precisaAnuencia?`<div class="field"><label>Carta de anuência entregue em</label><input type="date" id="qt_an" value="${quit.anuencia||''}"></div>`:'<div></div>'}</div>
+      ${precisaAnuencia&&prazoAn?`<div style="font-size:12px;margin-bottom:8px;color:${!quit.anuencia&&hojeLocal()>prazoAn?'var(--red)':'var(--text2)'}">Prazo da carta de anuência: até ${fmtBR(prazoAn)} (5 dias úteis).</div>`:''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${precisaAnuencia?`<button class="btn-sm" onclick="gerarDocCob('${c.id}','M6')">📄 Carta de anuência M6</button>`:''}
+        ${quitado?`<button class="btn-save" onclick="cobEncerrar('${c.id}','quitado',${precisaAnuencia})">Encerrar cobrança (quitada)</button>`:''}
+        ${ger&&!quitado?`<button class="btn-sm btn-del" onclick="cobEncerrar('${c.id}','perda',false)">Baixa como perda</button>`:''}</div></div>`;
+  }
+  if(cob.encerrada) corpo=`<div style="font-size:13px;color:var(--green)">✓ Cobrança encerrada (${cob.encerrada.tipo==='perda'?'baixa como perda':'quitada'}) em ${fmtBR(cob.encerrada.dt)} por ${escH(cob.encerrada.por||'')}.</div>`+(isInadConc(c)&&cob.encerrada.tipo!=='perda'?`<div class="btn-row" style="margin-top:8px"><button class="btn-sm" onclick="cobReabrir('${c.id}')">Reabrir régua (novo atraso)</button></div>`:'');
+
+  // acordos
+  const acHTML=acordosDe(c).slice().reverse().map(a=>{
+    const venc=acordoVencido(a);
+    const st=a.status==='ativo'?(venc?'<span class="badge badge-amber">Descumprido</span>':'<span class="badge badge-blue">Em dia</span>'):a.status==='cumprido'?'<span class="badge badge-green">Cumprido</span>':a.status==='descumprido'?'<span class="badge badge-amber">Descumprido</span>':'<span class="badge badge-gray">Cancelado</span>';
+    const dif=r2((+a.valorAcordado||0)-(+a.valorOriginal||0));
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+      <div style="display:flex;justify-content:space-between;gap:6px"><strong>${fmt(a.valorAcordado)} em ${(a.pagamentos||[]).length}x · ${escH(a.forma||'')}</strong>${st}</div>
+      <div style="color:var(--text2);font-size:11px;margin:2px 0 4px">Parcelas ${(a.parcelasIdx||[]).map(i=>i+1).join(', ')} · criado em ${fmtBR(a.criadoEm)} por ${escH(a.criadoPor||'')}${dif?` · ${dif<0?'desconto':'acréscimo'} ${fmt(Math.abs(dif))}`:''}</div>
+      ${(a.pagamentos||[]).map((p,k)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0">${p.pago?'✓':'○'} ${fmtBR(p.dt)} · ${fmt(p.valor)}${p.pago?` <span style="color:var(--green);font-size:11px">recebido em ${fmtBR(p.dtPago)}</span>`:a.status==='ativo'?` <button class="btn-sm" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="marcarPagamentoAcordo('${c.id}','${a.id}',${k})">✓ Recebido</button>`:''}</div>`).join('')}
+      ${a.descricao?`<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic">${escH(a.descricao)}</div>`:''}
+      ${a.status==='ativo'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${a.confirmadoEm?`<span style="font-size:11px;color:var(--green)">✓ "De acordo" em ${fmtBR(a.confirmadoEm)}</span>`:`<button class="btn-sm" style="font-size:10px" onclick="confirmarAcordoCliente('${c.id}','${a.id}')">Cliente respondeu "De acordo"</button>`}${botaoWA(cont.tel,msgM2(cont,a),'Reenviar M2')}<button class="btn-sm btn-del" style="font-size:10px" onclick="cancelarAcordo('${c.id}','${a.id}')">Cancelar acordo</button></div>`:''}
+    </div>`;
+  }).join('');
+  const ctHTML=(c.contatosCobranca||[]).slice().reverse().map(k=>`<div style="font-size:11px;padding:5px 0;border-bottom:0.5px solid var(--border)"><strong>${fmtBR(k.dt)}</strong> · ${escH(k.canal)} · ${escH(k.resultado)}${k.por?` · ${escH(k.por)}`:''}${k.obs?`<div style="color:var(--text2)">${escH(k.obs)}</div>`:''}</div>`).join('');
+  const histHTML=(cob.historico||[]).slice().reverse().slice(0,15).map(h=>`<div style="font-size:11px;padding:4px 0;border-bottom:0.5px solid var(--border)"><strong>${new Date(h.dt).toLocaleDateString('pt-BR')}</strong> · ${escH(h.txt)}${h.por?` · ${escH(h.por)}`:''}</div>`).join('');
+
+  const html=`
+    <div style="display:flex;gap:4px;margin-bottom:14px">${stepper}</div>
+    <div class="info-grid" style="margin-bottom:12px">
+      <div class="info-item"><div class="info-key">Em atraso</div><div class="info-val" style="color:${saldo>0?'var(--red)':'var(--green)'}">${fmt(saldo)}${atr.length?` · parc. ${atr.map(p=>p.num).join(', ')}`:''}</div></div>
+      <div class="info-item"><div class="info-key">Maior atraso</div><div class="info-val">${diasAtrasoMax(c)} dias</div></div>
+      <div class="info-item"><div class="info-key">Credor</div><div class="info-val">${cred.curto}</div></div>
+      <div class="info-item"><div class="info-key">Cobrança formal contra</div><div class="info-val">${alvo.tipo==='genitora'?'Genitora · '+escH(alvo.nome):'A própria cliente'}</div></div>
+      <div class="info-item"><div class="info-key">Prescrição até</div><div class="info-val">${fmtBR(presc.limite)}</div></div>
+      <div class="info-item"><div class="info-key">Interrupção (única)</div><div class="info-val" style="font-size:11px">${presc.interrupcao?fmtBR(presc.interrupcao.data)+' · '+escH(presc.interrupcao.ato):'Ainda não ocorreu'}</div></div>
+    </div>
+    ${bloqueioMenor(cont)?`<div style="background:#F0EDE6;border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:10px">Cliente menor de idade sem genitora devedora solidária: protesto, negativação e execução bloqueados até ${fmtBR(data18(cont))}.</div>`:''}
+    <div style="background:var(--surface);border:1px solid #CECBF6;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:#5B4BAD;margin-bottom:8px">Etapa ${e} · ${REGUA[e].nome}</div>
+      ${corpo}
+    </div>
+    <div class="sp-section-title">Acordos</div>
+    ${acHTML||'<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Nenhum acordo registrado.</div>'}
+    <div class="sp-section-title" style="margin-top:12px">Contatos de cobrança (${(c.contatosCobranca||[]).length})</div>
+    <div style="margin-bottom:10px">${ctHTML||'<div style="font-size:12px;color:var(--text2)">Nenhum contato registrado.</div>'}</div>
+    ${histHTML?`<div class="sp-section-title" style="margin-top:12px">Histórico da régua</div>${histHTML}`:''}`;
+  modalCob('cobReguaModal', `Régua de cobrança · ${escH(cont.nome||'')}`, html, 680);
+};
+window.cobToggleCheck = async function(concId,k,v){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const checks={...(cobDe(c).checks||{})};
+  if(v) checks[k]={dt:hojeLocal(), por:currentProfile?.nome||''}; else delete checks[k];
+  const lbl=REGUA.flatMap(r=>r.checks).find(([x])=>x===k)?.[1]||k;
+  try{ await salvarCob(c,{checks}, `${v?'Marcado':'Desmarcado'}: ${lbl}`); }catch(e){ alert('Erro: '+e.message); }
+  openReguaModal(c.contractId);
+};
+window.cobSalvarLink = async function(concId,k){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const v=$('lk_'+k)?.value.trim();
+  await salvarCob(c,{links:{...(cobDe(c).links||{}),[k]:v}}, 'Link de comprovantes atualizado');
+  toast('Link salvo ✓'); openReguaModal(c.contractId);
+};
+window.cobSalvarPrazo = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const v=$('cob_ini')?.value; if(!v){ alert('Informe a data de recebimento.'); return; }
+  await salvarCob(c,{prazoNotifIni:v}, `Notificação recebida em ${fmtBR(v)} · prazo até ${fmtBR(addDiasISO(v,COB_PRAZO_NOTIF))}`);
+  toast('Prazo registrado ✓'); openReguaModal(c.contractId);
+};
+window.cobValidarConferencia = async function(concId){
+  if(!isGestora()) return;
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  await salvarCob(c,{validadoEm:hojeLocal(), validadoPor:currentProfile?.nome||'', etapa:1}, 'Conferência validada pela Gestora · início da cobrança amigável');
+  toast('Conferência validada ✓'); openReguaModal(c.contractId);
+};
+window.cobAvancar = async function(concId, para){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(!podeCobrancaFormal()){ alert('Você não tem permissão para conduzir a cobrança formal.'); return; }
+  const cont=contDe(c);
+  if(para>=3 && bloqueioMenor(cont)){ alert('Devedora menor de idade sem genitora solidária: bloqueado até '+fmtBR(data18(cont))+'.'); return; }
+  if(!confirm(`Avançar a régua para a Etapa ${para} · ${REGUA[para].nome}?`)) return;
+  await salvarCob(c,{etapa:para, [`etapa${para}Em`]:hojeLocal()}, `Avançou para a Etapa ${para} · ${REGUA[para].nome}`);
+  toast('Régua atualizada ✓'); openReguaModal(c.contractId); renderKanban();
+};
+window.cobAutorizar = async function(concId, campo, msg){
+  if(!isGestora()) return;
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(!confirm(msg+'?')) return;
+  await salvarCob(c,{[campo]:{dt:hojeLocal(), por:currentProfile?.nome||''}}, msg+' pela Gestora');
+  toast(msg+' ✓'); openReguaModal(c.contractId); renderKanban();
+};
+window.cobSalvarProtesto = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const prot={data:$('pr_data').value, tabelionato:$('pr_tab').value.trim(), protocolo:$('pr_prot').value.trim(), situacao:$('pr_sit').value};
+  if(!prot.data){ alert('Informe a data do envio.'); return; }
+  const patch={protesto:prot};
+  let msg=`Protesto registrado: ${prot.situacao} · ${prot.tabelionato||'tabelionato não informado'}`;
+  if(!cobDe(c).interrupcao && prot.situacao==='Lavrado'){ patch.interrupcao={data:prot.data, ato:'Protesto lavrado'}; msg+=' · prescrição interrompida'; }
+  await salvarCob(c,patch,msg); toast('Protesto salvo ✓'); openReguaModal(c.contractId);
+};
+window.cobSalvarAdvogado = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const v=$('ex_adv').value;
+  await salvarCob(c,{advogado:v}, `Advogado responsável: ${usersMap[v]?.nome||'—'}`); openReguaModal(c.contractId);
+};
+window.cobSalvarExecucao = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(!podeAjuizarUser()){ alert('Somente usuários com a permissão "Pode ajuizar" registram a execução.'); return; }
+  const ex={processo:$('ex_proc').value.trim(), data:$('ex_data').value, situacao:$('ex_sit').value};
+  await salvarCob(c,{execucao:ex}, `Execução: ${ex.situacao}${ex.processo?' · processo '+ex.processo:''}`);
+  toast('Execução salva ✓'); openReguaModal(c.contractId);
+};
+window.cobEncerrar = async function(concId, tipo, precisaAnuencia){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(tipo==='perda' && !isGestora()) return;
+  const dq=$('qt_data')?.value||''; const an=$('qt_an')?.value||'';
+  if(tipo==='quitado'){
+    if(!dq){ alert('Informe a data da quitação.'); return; }
+    if(precisaAnuencia && !an){
+      await salvarCob(c,{quitacao:{data:dq}, etapa:5}, `Quitação em ${fmtBR(dq)} · carta de anuência até ${fmtBR(addDiasUteisISO(dq,5))}`);
+      toast('Quitação registrada. Falta a carta de anuência.'); openReguaModal(c.contractId); return;
+    }
+  }
+  let just='';
+  if(tipo==='perda'){ just=prompt('Justificativa da baixa como perda:'); if(!just) return; }
+  await salvarCob(c,{quitacao:{data:dq||hojeLocal(), anuencia:an||''}, etapa:5, encerrada:{tipo, dt:hojeLocal(), por:currentProfile?.nome||'', justificativa:just}}, tipo==='perda'?`Baixa como perda: ${just}`:'Cobrança encerrada (quitada)');
+  toast('Cobrança encerrada ✓'); openReguaModal(c.contractId); renderKanban();
+};
+window.cobReabrir = async function(concId){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  if(!confirm('Reabrir a régua para um novo atraso? O histórico anterior fica guardado.')) return;
+  const ant=cobDe(c);
+  await salvarCob(c,{etapa:0, checks:{}, validadoEm:'', validadoPor:'', prazoNotifIni:'', autProtesto:null, autExecucao:null, protesto:null, execucao:null, quitacao:null, encerrada:null, anteriores:[...(ant.anteriores||[]), {encerrada:ant.encerrada, protesto:ant.protesto||null}]}, 'Régua reaberta para novo atraso');
+  openReguaModal(c.contractId); renderKanban();
+};
+
+// ── documentos M3, M4, M5 e M6 ──
+function folhaDoc(titulo, corpo){
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${titulo}</title>
+  <style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1A1814;padding:36px 54px;line-height:1.55}
+  .topo{text-align:center;letter-spacing:.35em;color:#B08C5A;font-size:15pt;margin-bottom:2px}.sub{text-align:center;letter-spacing:.4em;color:#632022;font-size:8pt;margin-bottom:26px}
+  h1{text-align:center;font-size:13pt;margin:10px 0 18px} p{text-align:justify;margin:0 0 10px}
+  table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:10.5pt} th{background:#632022;color:#fff;padding:6px;text-align:left} td{border:1px solid #D9CBB8;padding:6px}
+  .rod{margin-top:36px;border-top:1px solid #D9CBB8;padding-top:6px;font-size:8pt;color:#8C8C8C;line-height:1.4}
+  @media print{body{padding:18px 30px}}</style></head><body>
+  <div class="topo">COSTA GALVÃO</div><div class="sub">ADVOCACIA</div>
+  ${corpo}
+  <div class="rod"><strong>Jucineide Costa Galvão Sociedade Individual de Advocacia</strong> · CNPJ 68.913.515/0001-16 · Registro OAB/PE nº 7.684<br>Dra. Jucineide Costa Galvão · OAB/PE 38.575 · Rua Dr. José Mariano, 345, Centro, Garanhuns/PE · CEP 55.295-335<br>WhatsApp: (87) 9.9809-4537 · (87) 9.9944-0544</div>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`;
+}
+function demonstrativo(c, fator, dataBase){
+  const cob=cobDe(c); const termo = cob.prazoNotifIni ? addDiasISO(cob.prazoNotifIni,COB_PRAZO_NOTIF) : '';
+  const linhas=parcelasEmAtraso(c).map(p=>{
+    const venc=addDiasUteisISO(p.dtCliente,1);
+    const principal=p.honorario;
+    const corr=r2(principal*((+fator||1)-1));
+    const dias = termo ? Math.max(0, difDias(dataBase, termo)) : 0;
+    const juros=r2((principal+corr)*0.01*dias/30);
+    return {num:p.num, pagoInss:p.dtCliente, venc, principal, termo, corr, juros, total:r2(principal+corr+juros)};
+  });
+  const abat=pagoEmAcordosVencidos(c);
+  const total=r2(linhas.reduce((s,l)=>s+l.total,0)-abat);
+  return {linhas, abat, total, termo};
+}
+window.gerarDocCob = function(concId, modelo){
+  const c=concessoes.find(x=>x.id===concId); if(!c) return;
+  const cont=contDe(c); const cred=CREDORES[credorDe(cont)]; const alvo=alvoCobranca(cont); const cob=cobDe(c);
+  const atr=parcelasEmAtraso(c); const hoje=fmtBR(hojeLocal());
+  const assinatura=`<p style="margin-top:34px;text-align:center">_______________________________________________<br>Jucineide Costa Galvão · OAB/PE 38.575<br>${credorDe(cont)==='SIA'?'p/ '+cred.nome:''}</p>`;
+  if(modelo==='M3'){
+    const tab=`<table><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th></tr>${atr.map(p=>`<tr><td>${p.num}</td><td>${fmtBR(addDiasUteisISO(p.dtCliente,1))}</td><td>${fmt(p.honorario)}</td></tr>`).join('')}${pagoEmAcordosVencidos(c)>0?`<tr><td colspan="2">Valores já pagos em acordo anterior</td><td>- ${fmt(pagoEmAcordosVencidos(c))}</td></tr>`:''}<tr><td colspan="2"><strong>Total</strong></td><td><strong>${fmt(saldoAtraso(c))}</strong></td></tr></table>`;
+    const notificada = alvo.tipo==='genitora'
+      ? `<p><strong>NOTIFICADA (devedora solidária):</strong> ${escH(alvo.nome)}, CPF nº ${escH(alvo.cpf||'[CPF]')}, residente na ${escH(alvo.end||'[endereço]')}.</p>`
+      : `<p><strong>NOTIFICADA:</strong> ${escH(cont.nome||'')}, CPF nº ${escH(cont.cpf||'[CPF]')}, residente na ${escH(cont.endereco||'[endereço]')}.</p>`;
+    abrirPDF(folhaDoc('Notificação extrajudicial',`<h1>NOTIFICAÇÃO EXTRAJUDICIAL</h1>
+      <p><strong>NOTIFICANTE:</strong> ${cred.qualif}, com endereço na Rua Dr. José Mariano, nº 345, Centro, Garanhuns/PE, CEP 55.295-335.</p>
+      ${notificada}
+      <p><strong>Referência:</strong> Contrato de Prestação de Serviços Advocatícios firmado em ${fmtBR(cont.fechamento)}.</p>
+      <p>Prezada Senhora,</p>
+      <p>Pela presente, a NOTIFICANTE comunica que permanecem em aberto os honorários contratuais previstos na Cláusula IV do contrato acima referido, conforme discriminado abaixo:</p>${tab}
+      <p>Fica V. Sa. <strong>NOTIFICADA</strong> para, no prazo de <strong>10 (dez) dias corridos</strong> contados do recebimento desta, efetuar o pagamento do valor acima, exclusivamente pelo ${cred.pix}, em nome de ${cred.nome}, ou entrar em contato pelos números oficiais (87) 9.9809-4537 ou (87) 9.9944-0544 para formalizar um acordo.</p>
+      <p>Decorrido o prazo sem pagamento ou acordo, o saldo devedor vencerá antecipadamente e será acrescido de correção monetária pelo IPCA e juros de mora de 1% (um por cento) ao mês, nos termos do Parágrafo Terceiro da Cláusula IV, podendo a NOTIFICANTE adotar as medidas previstas na Cláusula 5.2 do contrato, entre elas o protesto do título, a inscrição em órgãos de proteção ao crédito e a execução do contrato, que constitui título executivo extrajudicial nos termos do art. 24 da Lei nº 8.906/1994.</p>
+      <p>Caso o pagamento já tenha sido realizado, pedimos que desconsidere esta notificação e nos envie o comprovante.</p>
+      <p>Esta notificação é pessoal e confidencial.</p>
+      <p>Garanhuns/PE, ${hoje}.</p>${assinatura}`));
+    return;
+  }
+  if(modelo==='M4'){
+    const contatos=contatosValidos(c).map(k=>fmtBR(k.dt)).join(', ')||'[datas]';
+    const ini=cob.prazoNotifIni;
+    const devedora = alvo.tipo==='genitora' ? `${escH(alvo.nome)}, CPF nº ${escH(alvo.cpf||'[CPF]')}, devedora solidária` : `${escH(cont.nome||'')}, CPF nº ${escH(cont.cpf||'[CPF]')}`;
+    const d=demonstrativo(c, 1, hojeLocal());
+    abrirPDF(folhaDoc('Declaração de tentativa amigável',`<h1>DECLARAÇÃO</h1>
+      <p>${cred.qualif}, <strong>DECLARA</strong>, para fins de protesto do Contrato de Prestação de Serviços Advocatícios firmado em ${fmtBR(cont.fechamento)} com ${devedora}, que tentou receber amigavelmente o crédito, sem êxito, nos termos do art. 52 do Código de Ética e Disciplina da OAB, conforme segue:</p>
+      <p>a) contatos de cobrança realizados em ${contatos}, pelo WhatsApp oficial do escritório;</p>
+      <p>b) notificação extrajudicial enviada por WhatsApp, e-mail e carta com aviso de recebimento, recebida em ${fmtBR(ini)}, com prazo encerrado em ${fmtBR(ini?addDiasISO(ini,COB_PRAZO_NOTIF):'')} sem pagamento ou acordo.</p>
+      <p>Declara, ainda, que o valor apresentado a protesto, de ${fmt(d.total)}, corresponde a débito líquido, certo e exigível, calculado conforme o demonstrativo anexo, e assume a responsabilidade pela veracidade das informações prestadas.</p>
+      <p>Garanhuns/PE, ${hoje}.</p>${assinatura}`));
+    return;
+  }
+  if(modelo==='M5'){
+    const fator=prompt('Fator do IPCA acumulado (Calculadora do Cidadão / Banco Central), do fim do prazo da notificação até a data-base.\nExemplo: 1.0123', '1.0000');
+    if(fator===null) return;
+    const f=parseFloat(String(fator).replace(',','.'));
+    if(!(f>=1)){ alert('Fator inválido. Use, por exemplo, 1.0123.'); return; }
+    const dataBase=hojeLocal();
+    const d=demonstrativo(c, f, dataBase);
+    if(!d.termo){ alert('Registre antes a data de recebimento da notificação (Etapa 2).'); return; }
+    abrirPDF(folhaDoc('Demonstrativo do débito',`<h1>DEMONSTRATIVO DO DÉBITO</h1>
+      <p><strong>Credor:</strong> ${cred.nome} · <strong>Devedora:</strong> ${escH(alvo.tipo==='genitora'?alvo.nome+' (devedora solidária)':cont.nome||'')} · <strong>Contrato:</strong> ${fmtBR(cont.fechamento)}</p>
+      <table><tr><th>Parc.</th><th>Benefício pago pelo INSS</th><th>Vencimento do honorário</th><th>Principal</th><th>Encargos desde</th><th>Correção IPCA</th><th>Juros 1% a.m.</th><th>Total</th></tr>
+      ${d.linhas.map(l=>`<tr><td>${l.num}</td><td>${fmtBR(l.pagoInss)}</td><td>${fmtBR(l.venc)}</td><td>${fmt(l.principal)}</td><td>${fmtBR(l.termo)}</td><td>${fmt(l.corr)}</td><td>${fmt(l.juros)}</td><td>${fmt(l.total)}</td></tr>`).join('')}
+      ${d.abat>0?`<tr><td colspan="7">Valores já pagos em acordo anterior</td><td>- ${fmt(d.abat)}</td></tr>`:''}
+      <tr><td colspan="7"><strong>Total devido em ${fmtBR(dataBase)}</strong></td><td><strong>${fmt(d.total)}</strong></td></tr></table>
+      <p style="font-size:10pt;color:#595959">Encargos conforme Cláusula IV, Parágrafo Terceiro. Termo inicial: fim do prazo da notificação recebida em ${fmtBR(cob.prazoNotifIni)}. Índice IPCA acumulado: ${f.toFixed(4)}, fonte: Calculadora do Cidadão / Banco Central. Juros simples de 1% ao mês, pro rata die. Data-base do cálculo: ${fmtBR(dataBase)}.</p>`));
+    return;
+  }
+  if(modelo==='M6'){
+    const prot=cob.protesto||{};
+    const devedora = alvo.tipo==='genitora' ? `${escH(alvo.nome)}, CPF nº ${escH(alvo.cpf||'[CPF]')}` : `${escH(cont.nome||'')}, CPF nº ${escH(cont.cpf||'[CPF]')}`;
+    abrirPDF(folhaDoc('Carta de anuência',`<h1>CARTA DE ANUÊNCIA</h1>
+      <p>${cred.qualif}, na qualidade de credor(a), <strong>DECLARA</strong>, para fins de cancelamento do protesto lavrado pelo Tabelionato de Protesto de ${escH(prot.tabelionato||'[cidade/UF]')}, protocolo nº ${escH(prot.protocolo||'[nº]')}, em ${fmtBR(prot.data)}, referente ao Contrato de Prestação de Serviços Advocatícios firmado com ${devedora}, que o débito foi <strong>integralmente quitado</strong>, e <strong>AUTORIZA</strong> o cancelamento do protesto, nos termos do art. 26 da Lei nº 9.492/1997.</p>
+      <p>Garanhuns/PE, ${hoje}.</p>${assinatura}<p style="font-size:9pt;color:#8C8C8C;text-align:center">Assinar com certificado digital ICP-Brasil ou com firma reconhecida.</p>`));
+  }
+};
+
+// ── alertas do dashboard ──
+window.alertasCobranca = function(){
+  if(!temFinanceiro()) return [];
+  const out=[];
+  concessoes.forEach(c=>{
+    const cont=contDe(c); if(!cont.id || cont.etapa==='baixa') return;
+    const nome=cont.nome||c.nomeCliente; const cob=cobDe(c); const e=etapaCob(c);
+    acordosDe(c).filter(a=>a.status==='ativo').forEach(a=>{
+      if(acordoVencido(a)){ out.push({col:'#A0612A',name:nome,sub:'⚠ Acordo descumprido: renegociar ou seguir a régua',id:cont.id,urg:true}); return; }
+      (a.pagamentos||[]).filter(p=>!p.pago).forEach(p=>{ const d=difDias(p.dt, hojeLocal()); if(d===0||d===1) out.push({col:'#1D5FA8',name:nome,sub:`🤝 Pagamento do acordo vence ${d===0?'hoje':'amanhã'}: ${fmt(p.valor)}`,id:cont.id,tel:alvoCobranca(cont).tel}); });
+    });
+    if(cob.encerrada) return;
+    const pend=pendenteAutorizacao(c);
+    if(pend && (isInadConc(c)||e>=2)) out.push({col:'#856404',name:nome,sub:`🔒 Aguarda ${pend}`,id:cont.id,urg:isGestora()});
+    if(e===1 && isInadConc(c) && ((diasAtrasoMax(c)>=COB_DIAS_FORMAL && contatosValidos(c).length>=COB_MIN_CONTATOS) || acordosDescumpridos(c)>=2)) out.push({col:'#5B4BAD',name:nome,sub:'⚖ Pronta para a notificação extrajudicial',id:cont.id});
+    if(e===2 && cob.prazoNotifIni && hojeLocal()>addDiasISO(cob.prazoNotifIni,COB_PRAZO_NOTIF) && isInadConc(c)) out.push({col:'#5B4BAD',name:nome,sub:'⚖ Prazo da notificação venceu: seguir para o protesto',id:cont.id});
+    if(e>=2 && quitadoNaCobranca(c)){
+      const q=cob.quitacao||{};
+      if(cob.protesto?.data && q.data && !q.anuencia) out.push({col:'#B83535',name:nome,sub:`📄 Carta de anuência até ${fmtBR(addDiasUteisISO(q.data,5))} (5 dias úteis)`,id:cont.id,urg:true});
+      else out.push({col:'#3A7D44',name:nome,sub:'✓ Débito quitado: registrar o encerramento da cobrança',id:cont.id});
+    }
+    if(bloqueioMenor(cont) && isInadConc(c)){ const d=daysUntilDate(data18(cont)); if(d>=0&&d<=30) out.push({col:'#6B6560',name:nome,sub:`🎂 Completa 18 anos em ${fmtBR(data18(cont))}: cobrança formal liberada`,id:cont.id}); }
+  });
+  return out;
+};
+
+// ── métricas no financeiro ──
+window.cardMetricaCobranca = function(){
+  let ativos=0, valorAc=0, cumpridos=0, falhos=0, formal=0, valorFormal=0;
+  concessoes.forEach(c=>{
+    acordosDe(c).forEach(a=>{
+      if(a.status==='cumprido') cumpridos++;
+      else if(a.status==='descumprido' || acordoVencido(a)) falhos++;
+      if(acordoEmDia(a)){ ativos++; valorAc+=(a.pagamentos||[]).filter(p=>!p.pago).reduce((s,p)=>s+(+p.valor||0),0); }
+    });
+    const cont=contDe(c);
+    if(cont.etapa==='concedido' && cobDe(c).etapa>=2 && !cobDe(c).encerrada){ formal++; valorFormal+=saldoAtraso(c); }
+  });
+  const base=cumpridos+falhos; const taxa=base?Math.round(cumpridos/base*100):null;
+  return `<div class="metric-card" style="border:1px solid #B5D4F4;background:#EAF2FC">
+      <div class="metric-val" style="color:#1D5FA8">${ativos}</div><div class="metric-lbl">Acordos em dia</div>
+      <div style="font-size:13px;font-weight:600;color:#1D5FA8">${fmt(valorAc)}</div>
+      <div style="font-size:10px;color:var(--text2)">Cumprimento: ${taxa===null?'sem histórico':taxa+'% ('+cumpridos+' de '+base+')'}</div></div>
+    <div class="metric-card" style="border:1px solid #CECBF6;background:#F0EEFB">
+      <div class="metric-val" style="color:#5B4BAD">${formal}</div><div class="metric-lbl">Em cobrança formal</div>
+      <div style="font-size:13px;font-weight:600;color:#5B4BAD">${fmt(valorFormal)}</div></div>`;
+};
+window.tagReguaInad = function(c){
+  if(!c) return '';
+  const e=etapaCob(c); const st=statusAcordoAtual(c);
+  let t=`<span style="font-size:10px;color:#5B4BAD;background:#F0EEFB;border-radius:5px;padding:2px 7px;margin-left:4px">Etapa ${e} · ${REGUA[e].nome}</span>`;
+  if(st?.tipo==='vencido') t+=`<span style="font-size:10px;color:#A0612A;background:#FEF3E7;border-radius:5px;padding:2px 7px;margin-left:4px">Acordo descumprido</span>`;
+  return t;
+};
+
+// ── permissões por usuário (somente gestora) ──
+window.togglesPermissao = function(uid,u){
+  if(!isGestora() || u.role==='gestora') return '';
+  return `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${[['acessoFinanceiro','Acesso financeiro'],['cobrancaFormal','Conduz cobrança formal'],['podeAjuizar','Pode ajuizar']].map(([k,l])=>`<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer"><input type="checkbox" ${u[k]?'checked':''} onchange="alterarPermissao('${uid}','${k}',this.checked)"> ${l}</label>`).join('')}</div>`;
+};
+window.alterarPermissao = async function(uid,k,v){
+  if(!isGestora()) return;
+  const nomes={acessoFinanceiro:'Acesso financeiro',cobrancaFormal:'Conduz cobrança formal',podeAjuizar:'Pode ajuizar'};
+  try{
+    await updateDoc(doc(db,'users',uid),{[k]:v});
+    usersMap[uid]={...(usersMap[uid]||{}),[k]:v};
+    await registrarAudit('editar','—',usersMap[uid]?.nome||uid,`Permissão "${nomes[k]||k}" ${v?'concedida':'retirada'}`);
+    toast('Permissão atualizada ✓ · vale a partir do próximo acesso da pessoa');
+  }catch(e){ alert('Erro: '+e.message); renderAdminUsers(); }
+};
+
 
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
