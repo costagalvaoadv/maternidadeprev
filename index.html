@@ -613,6 +613,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
           </select>
           <select id="finMesFiltro" onchange="renderFinanceiro()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text)"></select>
           <button class="btn-new" style="font-size:12px;padding:6px 14px" onclick="openConcessaoModal()">+ Registrar concessão</button>
+          <button class="btn-export" onclick="openConferenciaAcordos()" title="Acordos encerrados automaticamente e pontos para revisar">🔎 Conferir acordos</button>
           <button class="btn-export btn-export-pdf" onclick="exportFinanceiroPDF()">⬇ PDF</button>
         </div>
       </div>
@@ -1267,7 +1268,21 @@ window.renderRelFinanceiro = function(){
     const parc = gerarParcelas(c);
     const cont = contracts.find(x=>x.id===c.contractId)||{};
     const isInad = isInadConc(c);
-    parc.forEach(p=>{
+    // acordos em andamento: entram pelas datas do acordo, e a parcela coberta (não paga) sai, para não contar duas vezes
+    const _acAbertos = acordosDe(c).filter(a=>a.status==='ativo' && !parcelasDoAcordoPagas(c,a));
+    const _cobEmDia = new Set(_acAbertos.filter(a=>!acordoVencido(a)).flatMap(a=>a.parcelasIdx||[]));
+    _acAbertos.forEach(a=>{
+      const venc=acordoVencido(a);
+      (a.pagamentos||[]).forEach((pg,k)=>{
+        if(venc && !pg.pago) return; // acordo descumprido: a dívida aparece pelas parcelas em atraso
+        const mes = pg.dt ? pg.dt.slice(0,7) : '';
+        if(mes>=iniMes && mes<=fimMes) parcelas.push({ nome: cont.nome||c.nomeCliente, dt: pg.dt, dtPago: pg.dtPago, mes,
+          hon: +pg.valor||0, valorRecebido: pg.pago?(+pg.valor||0):null, pago: !!pg.pago, parc: k+1, total: a.pagamentos.length,
+          isInad: false, cid: c.id, contractId: c.contractId, acordo: true, contaEsperado: !venc });
+      });
+    });
+    parc.forEach((p,i)=>{
+      if(!p.pago && _cobEmDia.has(i)) return;
       const mes = p.dtCliente ? p.dtCliente.slice(0,7) : '';
       if(mes>=iniMes && mes<=fimMes){
         parcelas.push({
@@ -1290,7 +1305,7 @@ window.renderRelFinanceiro = function(){
 
   parcelas.sort((a,b)=>a.dt?.localeCompare(b.dt||'')||0);
 
-  const totalEsperado = parcelas.reduce((s,p)=>s+p.hon,0);
+  const totalEsperado = parcelas.filter(p=>p.contaEsperado!==false).reduce((s,p)=>s+p.hon,0);
   const totalRecebido = parcelas.filter(p=>p.pago).reduce((s,p)=>s+(p.valorRecebido!=null?p.valorRecebido:p.hon),0);
   const totalPendente = parcelas.filter(p=>!p.pago&&!p.isInad).reduce((s,p)=>s+p.hon,0);
 
@@ -1303,7 +1318,7 @@ window.renderRelFinanceiro = function(){
     const parcAtras = parcelasEmAtraso(c);
     if(parcAtras.length){
       idsInadGlobal.add(c.contractId);
-      totalInadGlobal += parcAtras.reduce((s,p)=>s+p.honorario,0);
+      totalInadGlobal += saldoAtraso(c); // mesmo valor da ficha: desconta o que já entrou em acordo descumprido
       nInadGlobal++;
     }
   });
@@ -1325,7 +1340,7 @@ window.renderRelFinanceiro = function(){
   const meses = {};
   parcelas.forEach(p=>{
     if(!meses[p.mes]) meses[p.mes]={recebido:0,pendente:0,inad:0};
-    if(p.pago) meses[p.mes].recebido+=p.hon;
+    if(p.pago) meses[p.mes].recebido+=(p.valorRecebido!=null?p.valorRecebido:p.hon);
     else if(p.isInad) meses[p.mes].inad+=p.hon;
     else meses[p.mes].pendente+=p.hon;
   });
@@ -1358,9 +1373,9 @@ window.renderRelFinanceiro = function(){
     return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);${bg}font-size:12px">
       <div style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></div>
       <div style="flex:1;cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openConcessaoModal('${p.cid}')">${p.nome}</div>
-      <div style="color:var(--text2);font-size:11px">Parc. ${p.parc}/${p.total}</div>
+      <div style="color:var(--text2);font-size:11px">${p.acordo?'🤝 Acordo pgto':'Parc.'} ${p.parc}/${p.total}</div>
       <div style="color:var(--text2);font-size:11px">${p.dt||'—'}</div>
-      <div style="font-weight:600;color:${cor}">${fmt(p.hon)}</div>
+      <div style="font-weight:600;color:${cor}">${fmt(p.pago&&p.valorRecebido!=null?p.valorRecebido:p.hon)}</div>
       <div style="font-size:11px;color:${cor};white-space:nowrap">${status}</div>
     </div>`;
   }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhuma parcela no período selecionado.</div>';
@@ -1572,6 +1587,7 @@ window.gerarCamposParcelas = function(){
   const n = parseInt($('fc_nparcelas').value)||4;
   const conc = editingConcessaoId ? concessoes.find(x=>x.id===editingConcessaoId) : null;
   const existentes = conc?.parcelasManual || [];
+  const _emAcordo = new Set(acordosDe(conc).filter(a=>a.status==='ativo').flatMap(a=>a.parcelasIdx||[]));
   let html = '';
   for(let i=0;i<n;i++){
     const p = existentes[i]||{};
@@ -1587,9 +1603,9 @@ window.gerarCamposParcelas = function(){
       <input type="number" id="fp_hon_${i}" value="${p.honorario||''}"
         placeholder="Honorário R$" step="0.01" min="0"
         style="font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--radius);background:#EBF5ED;color:#27500A;font-weight:500">
-      <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
+<div><label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap">
         <input type="checkbox" id="fp_pago_${i}" ${pago?'checked':''} onchange="marcarDataPagamentoVer(${i})" style="width:14px;height:14px;cursor:pointer"> Recebido
-      </label>
+      </label>${_emAcordo.has(i)&&!pago?`<div title="Esta parcela tem acordo ativo. Ao marcar como recebida e salvar, o acordo se encerra sozinho." style="font-size:9px;color:#1D5FA8;background:#EAF2FC;border-radius:5px;padding:1px 5px;margin-top:2px;display:inline-block;white-space:nowrap">🤝 em acordo</div>`:''}</div>
       <div><input type="date" id="fp_dtpg_${i}" value="${pago?(p.dtPago||''):''}" title="Data em que o pagamento caiu na conta"
         style="font-size:11px;padding:5px 6px;border:1px solid ${pago&&!p.dataConfirmada?'#F0D080':'var(--border)'};border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%">
         ${pago&&!p.dataConfirmada?'<div style="font-size:9px;color:#856404;margin-top:2px">data não confirmada</div>':''}</div>
@@ -1703,10 +1719,18 @@ window.salvarConcessao=async function(){
     modalidade:$('fc_modalidade').value,
     parcelasManual,
   };
+  // parcela marcada/desmarcada → acordo ligado a ela encerra/reabre na mesma gravação
+  const _concAtual = editingConcessaoId ? concessoes.find(x=>x.id===editingConcessaoId) : null;
+  const _concil = _concAtual ? acordosConciliados(_concAtual, parcelasManual) : null;
+  if(_concil?.mudou) data.acordos = _concil.acordos;
   try{
     if(editingConcessaoId){
       await updateDoc(doc(db,'concessoes',editingConcessaoId),data);
-      toast('Concessão atualizada ✓');
+      if(_concil?.mudou){
+        for(const a of _concil.encerrados) await registrarAudit('cobranca', cid, cont?.nome||'—', txtAcordoEncerrado(a));
+        for(const a of _concil.reabertos) await registrarAudit('cobranca', cid, cont?.nome||'—', txtAcordoReaberto(a));
+      }
+      toast(_concil?.encerrados?.length ? 'Concessão atualizada ✓ · acordo ligado à parcela encerrado' : 'Concessão atualizada ✓');
     } else {
       data.createdAt=serverTimestamp();
       await addDoc(collection(db,'concessoes'),data);
@@ -3298,6 +3322,9 @@ function subscribeConcessoes(){
   unsubConcessoes = onSnapshot(q, snap=>{
     concessoes=[];
     snap.forEach(d=>concessoes.push({id:d.id,...d.data()}));
+    // conciliação acordo × parcela e régua (corrige a tela na hora e grava em seguida)
+    const _pendConc = conciliarEmMemoria();
+    if(_pendConc.length) persistirConciliacao(_pendConc);
     if($('view-financeiro')?.classList.contains('active')) renderFinanceiro();
     // re-renderizar kanban e dashboard para atualizar badges de financeiro
     renderKanban();
@@ -3368,7 +3395,7 @@ window.renderFinanceiro = function(){
       }
     });
     // pagamentos de acordos: em dia entram como a receber; já pagos entram como recebidos
-    acordosDe(c).filter(a=>a.status==='ativo').forEach(a=>{
+    acordosDe(c).filter(a=>a.status==='ativo' && !parcelasDoAcordoPagas(c,a)).forEach(a=>{ // parcela já recebida: o acordo não conta de novo
       const venc=acordoVencido(a);
       (a.pagamentos||[]).forEach((pg,k)=>{
         if(pg.pago){ totalReceb+=(+pg.valor||0); if(noPer(pg.dt)) recPer+=(+pg.valor||0); if(venc) totalAResgatar-=(+pg.valor||0); return; }
@@ -3525,8 +3552,8 @@ window.renderFinanceiro = function(){
         <div class="alert-dot" style="background:${cor}"></div>
         <div style="flex:1">
           <div class="alert-name" style="cursor:pointer;text-decoration:underline" onclick="abrirClienteDoFinanceiro('${g.contractId}')">${g.nome} ${labelDias}</div>
-          <div class="alert-sub">${nParc > 1 ? `${nParc} parcelas pendentes · Total: <strong>${fmt(total)}</strong>` : `Parcela ${g.parcelas[0].parc}/${g.parcelas[0].total} · Previsão ${g.parcelas[0].dt} · <strong>${fmt(total)}</strong>`}${g.tel?' · '+g.tel:''}</div>
-          ${nParc > 1 ? `<div style="margin-top:4px">${g.parcelas.map(p=>`<span style="font-size:10px;background:var(--surface2);border-radius:5px;padding:2px 6px;margin-right:4px">Parc.${p.parc} · ${p.dt} · ${fmt(p.hon)}</span>`).join('')}</div>` : ''}
+          <div class="alert-sub">${nParc > 1 ? `${nParc} parcelas pendentes · Total: <strong>${fmt(total)}</strong>` : `${g.parcelas[0].acordoId?`<span class="badge badge-blue">🤝 Acordo</span> Pagamento`:'Parcela'} ${g.parcelas[0].parc}/${g.parcelas[0].total} · Previsão ${g.parcelas[0].dt} · <strong>${fmt(total)}</strong>`}${g.tel?' · '+g.tel:''}</div>
+          ${nParc > 1 ? `<div style="margin-top:4px">${g.parcelas.map(p=>`<span style="font-size:10px;background:${p.acordoId?'var(--blue-bg)':'var(--surface2)'};border-radius:5px;padding:2px 6px;margin-right:4px">${p.acordoId?'🤝 Acordo pgto ':'Parc.'}${p.parc} · ${p.dt} · ${fmt(p.hon)}</span>`).join('')}</div>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -3686,7 +3713,9 @@ window.marcarPago=async function(cid,idx,dtInformada,valorInformado){
     if(i===idx){ o.dataConfirmada=true; if(valorInformado!=null) o.valorRecebido=valorInformado; }
     return o;
   });
-  await updateDoc(doc(db,'concessoes',cid),{parcelasManual});
+  const _concilMP = acordosConciliados(c, parcelasManual);
+  await updateDoc(doc(db,'concessoes',cid), _concilMP.mudou ? {parcelasManual, acordos:_concilMP.acordos} : {parcelasManual});
+  if(_concilMP.mudou){ const _ct=contDe(c); for(const a of _concilMP.encerrados) await registrarAudit('cobranca', c.contractId, _ct.nome||c.nomeCliente||'—', txtAcordoEncerrado(a)); }
   toast('Honorário marcado como recebido ✓');
   // verificar se todas as parcelas estão pagas
   const todasPagas = parc.every(p=>p.pago);
@@ -3850,6 +3879,131 @@ function prescricaoInfo(c){
   return {base, limite, interrupcao:it||null};
 }
 function quitadoNaCobranca(c){ return !isInadConc(c) && !acordosDe(c).some(a=>a.status==='ativo'); }
+
+// ── CONCILIAÇÃO ACORDO × PARCELA (nov/2026) ──
+// Regra única: o honorário está pago quando a parcela está marcada como recebida.
+// Um acordo ativo cujas parcelas já foram todas recebidas está cumprido (encerra sozinho).
+function parcelasDoAcordoPagas(c,a){
+  const idx=a?.parcelasIdx||[]; if(!idx.length) return false;
+  const parc=gerarParcelas(c);
+  return idx.every(i=>!!parc[i]?.pago);
+}
+function dtPagoPelasParcelas(c,a){
+  const parc=gerarParcelas(c);
+  return (a.parcelasIdx||[]).map(i=>parc[i]?.dtPago||'').filter(Boolean).sort().pop()||hojeLocal();
+}
+// devolve os acordos ajustados às parcelas (parcelasManual opcional = estado que vai ser gravado)
+function acordosConciliados(c, parcelasManual){
+  const cc = parcelasManual ? {...c, parcelasManual} : c;
+  const encerrados=[], reabertos=[];
+  const acordos=acordosDe(c).map(a=>{
+    if(a.status==='ativo' && parcelasDoAcordoPagas(cc,a)){
+      const n={...a, status:'cumprido', cumpridoEm:dtPagoPelasParcelas(cc,a), encerradoPorParcela:true};
+      encerrados.push(n); return n;
+    }
+    if(a.status==='cumprido' && a.encerradoPorParcela && !parcelasDoAcordoPagas(cc,a)){
+      const n={...a, status:'ativo'}; delete n.cumpridoEm; delete n.encerradoPorParcela;
+      reabertos.push(n); return n;
+    }
+    return a;
+  });
+  return {mudou:encerrados.length+reabertos.length>0, acordos, encerrados, reabertos};
+}
+function txtAcordoEncerrado(a){ return `Acordo de ${fmt(a.valorAcordado)} (parcela ${(a.parcelasIdx||[]).map(i=>i+1).join(', ')}) encerrado automaticamente: parcela já recebida em ${fmtBR(a.cumpridoEm)}`; }
+function txtAcordoReaberto(a){ return `Acordo de ${fmt(a.valorAcordado)} (parcela ${(a.parcelasIdx||[]).map(i=>i+1).join(', ')}) reaberto: a parcela deixou de constar como recebida`; }
+// nada vencido e sem pagamento, nem acordo em andamento
+function semNadaVencido(c){
+  const cob=idxCobertosPorAcordo(c);
+  const vencida=gerarParcelas(c).some((p,i)=>!p.pago && p.dtCliente && daysUntilDate(p.dtCliente)<0 && !cob.has(i));
+  return !vencida && !acordosDe(c).some(a=>a.status==='ativo');
+}
+// régua encerra sozinha nas Etapas 1 e 2 (sem protesto). Protesto e execução: encerramento manual (carta de anuência / desistência)
+function reguaParaEncerrar(c){
+  const cob=c?.cobranca; if(!cob || cob.encerrada) return false;
+  const e=etapaCob(c);
+  if(e<1 || e>=3) return false;
+  if(e===2 && cob.protesto?.data) return false;
+  return semNadaVencido(c);
+}
+function patchReguaAuto(c){
+  const cob=c.cobranca||{};
+  const ultPg=gerarParcelas(c).map(p=>p.dtPago||'').filter(Boolean).sort().pop()||hojeLocal();
+  const txt=`Régua encerrada automaticamente na Etapa ${etapaCob(c)} · ${REGUA[etapaCob(c)]?.nome||''}: nada em atraso`;
+  return {...cob, quitacao:{data:ultPg, anuencia:''}, encerrada:{tipo:'quitado', dt:hojeLocal(), por:'Sistema (automático)', automatico:true},
+    historico:[...(cob.historico||[]), {dt:agoraISO(), por:'Sistema (automático)', txt}]};
+}
+// aplica a conciliação em memória (a tela já sai certa) e devolve o que precisa ser gravado
+function conciliarEmMemoria(){
+  const pend=[];
+  concessoes.forEach(c=>{
+    const r=acordosConciliados(c);
+    const patch={}, msgs=[];
+    if(r.mudou){ patch.acordos=r.acordos; r.encerrados.forEach(a=>msgs.push(txtAcordoEncerrado(a))); r.reabertos.forEach(a=>msgs.push(txtAcordoReaberto(a))); }
+    const cTmp=r.mudou?{...c, acordos:r.acordos}:c;
+    if(reguaParaEncerrar(cTmp)){ patch.cobranca=patchReguaAuto(cTmp); msgs.push(patch.cobranca.historico.slice(-1)[0].txt); }
+    if(Object.keys(patch).length){ Object.assign(c, patch); pend.push({c, patch, msgs}); }
+  });
+  return pend;
+}
+const _conciliando=new Set();
+async function persistirConciliacao(pend){
+  let n=0;
+  for(const {c,patch,msgs} of pend){
+    if(_conciliando.has(c.id)) continue;
+    _conciliando.add(c.id);
+    try{
+      await updateDoc(doc(db,'concessoes',c.id), patch);
+      const cont=contDe(c);
+      for(const m of msgs) await registrarAudit('cobranca', c.contractId, cont.nome||c.nomeCliente||'—', m);
+      n++;
+    }catch(e){ console.warn('Conciliação:',e); }
+    finally{ _conciliando.delete(c.id); }
+  }
+  if(n && isGestora() && !window._conferenciaMostrada){
+    window._conferenciaMostrada=true;
+    setTimeout(()=>openConferenciaAcordos(true), 600);
+  }
+}
+async function encerrarAcordoJaPago(c){
+  const r=acordosConciliados(c); if(!r.mudou) return;
+  await salvarConc(c,{acordos:r.acordos}, r.encerrados.map(txtAcordoEncerrado).join(' · ')+' · nenhum valor lançado de novo');
+  toast('A parcela já estava recebida: acordo encerrado sem novo lançamento ✓');
+  if($('cobReguaModal')?.classList.contains('open')) openReguaModal(c.contractId);
+}
+
+// ── conferência de acordos e cobrança ──
+window.openConferenciaAcordos = function(automatico){
+  if(!temFinanceiro()) return;
+  const ajustados=[], revisar=[];
+  concessoes.forEach(c=>{
+    const cont=contDe(c); const nome=cont.nome||c.nomeCliente||'—'; const parc=gerarParcelas(c);
+    acordosDe(c).forEach(a=>{
+      const ps=(a.parcelasIdx||[]).map(i=>i+1).join(', ');
+      if(a.status==='cumprido' && a.encerradoPorParcela){
+        ajustados.push({nome, contractId:c.contractId, concId:c.id, txt:`Acordo de ${fmt(a.valorAcordado)} (parcela ${ps}) encerrado: a parcela já estava recebida em ${fmtBR(a.cumpridoEm)}`});
+        const pagoAc=r2((a.pagamentos||[]).filter(p=>p.pago).reduce((s,p)=>s+(+p.valor||0),0));
+        if(pagoAc>0) revisar.push({nome, contractId:c.contractId, concId:c.id, txt:`${fmt(pagoAc)} foi registrado como recebido no acordo e a parcela ${ps} também foi marcada como recebida. Confira no extrato se o valor entrou uma ou duas vezes.`});
+      }
+      if(a.status==='ativo'){
+        const pagas=(a.parcelasIdx||[]).filter(i=>parc[i]?.pago);
+        if(pagas.length) revisar.push({nome, contractId:c.contractId, concId:c.id, txt:`Acordo ativo cobre a(s) parcela(s) ${ps}, mas a parcela ${pagas.map(i=>i+1).join(', ')} já está marcada como recebida. Confira se o acordo precisa de ajuste.`});
+      }
+    });
+    const cob=cobDe(c);
+    if(cob.encerrada?.automatico) ajustados.push({nome, contractId:c.contractId, concId:c.id, txt:`Régua de cobrança encerrada automaticamente em ${fmtBR(cob.encerrada.dt)}: nada em atraso`});
+  });
+  const item=(i,cor)=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border)">
+    <div style="width:8px;height:8px;border-radius:50%;background:${cor};margin-top:5px;flex-shrink:0"></div>
+    <div style="flex:1;font-size:12px"><strong style="cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="fecharModalCob('cobConferenciaModal');openConcessaoModal('${i.concId}')">${escH(i.nome)}</strong><div style="color:var(--text2);margin-top:2px;line-height:1.5">${escH(i.txt)}</div></div>
+    <button class="btn-sm" style="font-size:10px;flex-shrink:0" onclick="fecharModalCob('cobConferenciaModal');openReguaModal('${i.contractId}')">⚖ Régua</button></div>`;
+  const html=`${automatico?`<div style="background:var(--green-bg);color:var(--green);border:1px solid #C0DD97;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:12px">O sistema conciliou acordos e parcelas ao abrir. Nenhum valor foi lançado ou cobrado: só foram encerrados acordos de parcelas já recebidas e réguas sem nada em atraso. Tudo ficou registrado no log de auditoria.</div>`:''}
+    <div class="sp-section-title" style="color:#B83535">Para você revisar (${revisar.length})</div>
+    ${revisar.length?revisar.map(i=>item(i,'#B83535')).join(''):'<div style="font-size:12px;color:var(--text2);padding:4px 0 10px">Nenhum ponto para revisar. ✓</div>'}
+    <div class="sp-section-title" style="margin-top:14px">Ajustes automáticos (${ajustados.length})</div>
+    ${ajustados.length?ajustados.map(i=>item(i,'#3A7D44')).join(''):'<div style="font-size:12px;color:var(--text2);padding:4px 0">Nenhum ajuste automático registrado.</div>'}
+    <div class="btn-row" style="margin-top:14px"><button class="btn-save" onclick="fecharModalCob('cobConferenciaModal')">Fechar</button></div>`;
+  modalCob('cobConferenciaModal','🔎 Conferência de acordos e cobrança', html, 640);
+};
 
 // grupo do card no Kanban (somente para quem tem acesso financeiro)
 function grupoCobranca(cont){
@@ -4123,10 +4277,15 @@ window.cancelarAcordo = async function(concId, acordoId){
   await salvarConc(c,{acordos},'Acordo cancelado');
   toast('Acordo cancelado'); openReguaModal(c.contractId);
 };
-window.marcarPagamentoAcordo = function(concId, acordoId, k){ openRecebimentoModal(concId, null, acordoId, k); };
+window.marcarPagamentoAcordo = function(concId, acordoId, k){
+  const c=concessoes.find(x=>x.id===concId); const a=acordosDe(c).find(x=>x.id===acordoId);
+  if(c && a && parcelasDoAcordoPagas(c,a)){ encerrarAcordoJaPago(c); return; } // evita lançar o mesmo pagamento duas vezes
+  openRecebimentoModal(concId, null, acordoId, k);
+};
 window.confirmarPagamentoAcordo = async function(concId, acordoId, k, dtPg){
   const c=concessoes.find(x=>x.id===concId); if(!c) return;
   const a=acordosDe(c).find(x=>x.id===acordoId); if(!a) return;
+  if(parcelasDoAcordoPagas(c,a)){ await encerrarAcordoJaPago(c); return; }
   const pg=a.pagamentos[k]; if(!pg||pg.pago) return;
   const pagamentos=a.pagamentos.map((p,i)=>i===k?{...p,pago:true,dtPago:dtPg}:p);
   const cumprido=pagamentos.every(p=>p.pago);
@@ -4177,7 +4336,7 @@ window.secaoCobrancaPanel = function(cont){
     <div class="sp-section-title">Financeiro e cobrança</div>
     <div class="info-grid">
       <div class="info-item"><div class="info-key">Em atraso</div><div class="info-val" style="color:${saldo>0?'var(--red)':'var(--green)'}">${fmt(saldo)}${saldo>0?` · ${diasAtrasoMax(c)}d`:''}</div></div>
-      <div class="info-item"><div class="info-key">Régua</div><div class="info-val">${g||cobDe(c).etapa>0?`Etapa ${etapaCob(c)} · ${REGUA[etapaCob(c)].nome}`:'—'}</div></div>
+      <div class="info-item"><div class="info-key">Régua</div><div class="info-val">${cobDe(c).encerrada&&!g?`<span style="color:var(--green)">Encerrada · ${cobDe(c).encerrada.tipo==='perda'?'baixa como perda':'quitada'}</span>`:(g||cobDe(c).etapa>0?`Etapa ${etapaCob(c)} · ${REGUA[etapaCob(c)].nome}`:'—')}</div></div>
       <div class="info-item"><div class="info-key">Credor</div><div class="info-val">${CREDORES[credorDe(cont)].curto}</div></div>
       <div class="info-item"><div class="info-key">Acordo</div><div class="info-val">${st?(st.tipo==='emdia'?'Em dia':'Descumprido'):'—'}</div></div>
     </div>
