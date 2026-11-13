@@ -792,6 +792,7 @@ tr:hover td{background:var(--bg);cursor:pointer}
               <option value="excluir">Exclusões</option>
               <option value="mover">Mudanças de etapa</option>
               <option value="cobranca">Cobrança</option>
+              <option value="contato">Contatos feitos</option>
             </select>
           </div>
           <div class="alert-card" style="max-height:500px;overflow-y:auto" id="auditLogCard">
@@ -1470,7 +1471,7 @@ function subscribeAudit(){
 window.renderAuditLog = function(){
   const filtro = $('auditFiltro')?.value||'';
   const logs = filtro ? auditLogs.filter(l=>l.acao===filtro) : auditLogs;
-  const icons = {criar:'📝',editar:'✏️',excluir:'🗑',mover:'↕️',cobranca:'💰'};
+  const icons = {criar:'📝',editar:'✏️',excluir:'🗑',mover:'↕️',cobranca:'💰',contato:'✅'};
   const card = $('auditLogCard');
   if(!card) return;
   card.innerHTML = logs.length ? logs.slice(0,100).map(l=>{
@@ -1479,7 +1480,7 @@ window.renderAuditLog = function(){
       <span class="audit-icon">${icons[l.acao]||'•'}</span>
       <div class="audit-main">
         <span class="audit-who">${l.nomeUsuario||'—'}</span>
-        <span style="color:var(--text2)"> ${l.acao==='criar'?'cadastrou':l.acao==='editar'?'editou':l.acao==='excluir'?'excluiu':l.acao==='mover'?'moveu':'ação em'}</span>
+        <span style="color:var(--text2)"> ${l.acao==='criar'?'cadastrou':l.acao==='editar'?'editou':l.acao==='excluir'?'excluiu':l.acao==='mover'?'moveu':l.acao==='contato'?'registrou contato com':'ação em'}</span>
         <strong> ${l.nomeCliente||'—'}</strong>
         <div class="audit-detail">${dt}${l.detalhes?' · '+l.detalhes:''}</div>
       </div>
@@ -2241,6 +2242,92 @@ window.toggleCentralContatos = function(){
   else { body.style.display='none'; btn.textContent='▶ Expandir'; }
 };
 
+// ── MARCAR COMO FEITO · Central de Contatos e Alertas (nov/2026) ──
+// Registro no próprio contrato (campo "feitos"), visível para toda a equipe e no log de auditoria.
+const FEITO_TIPOS={
+  'guia-enviar':{rot:'guia enviada'},
+  'cobrar-guia':{rot:'cobrança da guia enviada', dias:3},
+  'guia-paga':{rot:'guia paga'},
+  'cobrar-hon':{rot:'cobrança de honorário enviada', dias:7},
+  'nasceu':{rot:'cliente avisada sobre o protocolo', dias:3},
+  'mes-gest':{rot:'mensagem do mês enviada', semana:true},
+};
+function inicioSemanaISO(){ const h=hojeLocal(); const d=new Date(h+'T12:00:00'); return addDiasISO(h, -((d.getDay()+6)%7)); }
+function hashTxt(s){ let h=5381; for(const ch of String(s)) h=((h<<5)+h+ch.charCodeAt(0))|0; return 'al_'+(h>>>0).toString(36); }
+// chave estável do alerta: ignora contagens de dias que mudam todo dia, mantém datas
+function chaveAlerta(sub){ return hashTxt(String(sub).replace(/(?<![-\/\d])\d{1,3}(?![-\/\d])/g,'#')); }
+function feitoDe(c,k){ return (c?.feitos||{})[k]||null; }
+function feitoAtivo(c,k){ const f=feitoDe(c,k); if(!f) return false; if(f.ate && hojeLocal()>=f.ate) return false; return true; }
+function btnFeito(id,k,rot){ return `<button onclick="marcarFeito('${id}','${k}')" title="Marcar como feito" style="display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">✓ ${rot}</button>`; }
+function linhaFeito(c,k,f){
+  const volta = f.ate && hojeLocal()<f.ate ? (FEITO_TIPOS[k]?.semana ? ' · volta na próxima semana' : ` · volta em ${fmtBR(f.ate)}`) : '';
+  return `<div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--text2);padding:5px 0;border-top:.5px dashed var(--border)">
+    <span><span style="text-decoration:line-through">${escH(c.nome)}</span> · ${escH(f.txt||f.rot)} · ${new Date(f.dt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${escH(f.por||'')}${volta}</span>
+    <a onclick="desfazerFeito('${c.id}','${k}')" style="color:var(--blue);cursor:pointer;flex-shrink:0;font-weight:600">Desfazer</a></div>`;
+}
+function rodapeFeitos(itens, boxId){
+  if(!itens.length) return '';
+  window._fAb=window._fAb||{};
+  return `<details ${window._fAb[boxId]?'open':''} ontoggle="(window._fAb=window._fAb||{})['${boxId}']=this.open" style="margin-top:8px">
+    <summary style="font-size:11px;color:var(--green);cursor:pointer;font-weight:600">✓ Feitos nesta semana (${itens.length})</summary>
+    ${itens.sort((a,b)=>(b.f.dt||'').localeCompare(a.f.dt||'')).map(({c,k,f})=>linhaFeito(c,k,f)).join('')}</details>`;
+}
+function feitosSemana(lista, kinds){
+  const ini=inicioSemanaISO(); const out=[];
+  lista.forEach(c=>kinds.forEach(k=>{ const f=feitoDe(c,k); if(f && f.dia>=ini) out.push({c,k,f}); }));
+  return out;
+}
+function feitosAlertasSemana(lista){
+  const ini=inicioSemanaISO(); const out=[];
+  lista.forEach(c=>Object.entries(c.feitos||{}).forEach(([k,f])=>{ if(k.startsWith('al_') && f && f.dia>=ini) out.push({c,k,f}); }));
+  return out;
+}
+window.marcarFeito = async function(id, k, opts){
+  const c=contracts.find(x=>x.id===id); if(!c) return;
+  opts=opts||{};
+  const T=FEITO_TIPOS[k]||{};
+  const hoje=hojeLocal();
+  const rec={dia:hoje, dt:agoraISO(), por:currentProfile?.nome||'', rot:opts.rot||T.rot||'feito',
+    ate: T.semana ? addDiasISO(inicioSemanaISO(),7) : T.dias ? addDiasISO(hoje,T.dias) : ''};
+  if(opts.alertaTxt) rec.txt=opts.alertaTxt;
+  const upd={};
+  if(k==='guia-enviar'){
+    const g=await pedirDadosGuia(hoje); if(g===null) return;
+    rec.prev={etapa:c.etapa, guia_status:c.guia_status||'', dataEnvioGuia:c.dataEnvioGuia||'', dataVencGuia:c.dataVencGuia||''}; rec.para='guia-enviada';
+    Object.assign(upd,{etapa:'guia-enviada', guia_status:'enviada', dataEnvioGuia:g.envio, dataVencGuia:g.venc});
+  }
+  if(k==='guia-paga'){
+    if(!confirm(`Confirmar que ${c.nome} pagou a guia?\n\nO caso vai para "Guia paga · aguard. nasc.".`)) return;
+    rec.prev={etapa:c.etapa, guia_status:c.guia_status||''}; rec.para='guia-paga';
+    Object.assign(upd,{etapa:'guia-paga', guia_status:'paga'});
+  }
+  try{
+    if(k==='cobrar-hon' && concDe(id)){
+      rec.fid='f'+Date.now().toString(36);
+      await registrarContatoCobranca(id,{canal:'WhatsApp', resultado:'Mensagem de cobrança enviada', obs:'Registrado pela Central de Contatos', fid:rec.fid});
+    }
+    upd.feitos={...(c.feitos||{}), [k]:rec};
+    await updateDoc(doc(db,'contracts',id), upd);
+  }catch(e){ alert('Erro: '+e.message); return; }
+  await registrarAudit('contato', id, c.nome, `Marcado como feito: ${rec.txt||rec.rot}${rec.para?' · movido para '+colLabel(rec.para):''}`);
+  toast('Marcado como feito ✓');
+};
+window.marcarFeitoAlerta = function(id,k){ marcarFeito(id,k,{rot:'alerta resolvido', alertaTxt:(window._alertReg||{})[id+'|'+k]||'alerta'}); };
+window.desfazerFeito = async function(id,k){
+  const c=contracts.find(x=>x.id===id); const f=feitoDe(c,k); if(!c||!f) return;
+  if(!confirm(`Desfazer "${f.txt||f.rot}" de ${c.nome}?`)) return;
+  const feitos={...(c.feitos||{})}; delete feitos[k];
+  const upd={feitos};
+  const volta = f.prev && f.para && c.etapa===f.para; // só volta a etapa se o caso não andou depois
+  if(volta) Object.assign(upd, f.prev);
+  try{
+    await updateDoc(doc(db,'contracts',id), upd);
+    if(f.fid){ const conc=concDe(id); if(conc) await salvarConc(conc,{contatosCobranca:(conc.contatosCobranca||[]).filter(x=>x.fid!==f.fid)}); }
+  }catch(e){ alert('Erro: '+e.message); return; }
+  await registrarAudit('contato', id, c.nome, `Desfeito: ${f.txt||f.rot}${volta?' · voltou para '+colLabel(f.prev.etapa):''}`);
+  toast('Desfeito ✓');
+};
+
 function renderCentralContatos(all){
   const wrap = document.getElementById('centralContatosWrap');
   const body = document.getElementById('centralContatosBody');
@@ -2257,23 +2344,25 @@ function renderCentralContatos(all){
       style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;text-decoration:none">📱 WhatsApp</a>`;
   }
 
-  function grupoCard(icone, titulo, cor, itens){
-    if(!itens.length) return '';
+  function grupoCard(icone, titulo, cor, itens, rodape){
+    if(!itens.length && !rodape) return '';
     return `<div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${cor};border-radius:var(--radius-lg);padding:14px 14px 10px">
       <div style="font-size:12px;font-weight:700;color:${cor};margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${icone} ${titulo} <span style="font-weight:400;color:var(--text2)">(${itens.length})</span></div>
+      ${itens.length?'':'<div style="font-size:11px;color:var(--green);padding:4px 0">Tudo feito por aqui ✓</div>'}
       ${itens.map(i=>`<div style="padding:7px 0;border-bottom:.5px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${i.id}')">${i.nome}</div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">${i.sub}</div>
         </div>
-        <div style="flex-shrink:0">${i.wlink}</div>
+        <div style="flex-shrink:0;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${i.wlink}${i.feito||''}</div>
       </div>`).join('')}
+      ${rodape||''}
     </div>`;
   }
 
   // ── Grupo 1: Nasceu · Protocolar ──
-  const nasceu = all.filter(c=>c.etapa==='nasceu').map(c=>({
-    id:c.id, nome:c.nome,
+  const nasceu = all.filter(c=>c.etapa==='nasceu' && !feitoAtivo(c,'nasceu')).map(c=>({
+    id:c.id, nome:c.nome, feito:btnFeito(c.id,'nasceu','Avisei'),
     sub:`DPP: ${c.dpp||'—'} · Avisar operacional + comunicar cliente`,
     wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! O bebê já nasceu? Precisamos que nos avise assim que possível para darmos início ao protocolo do seu benefício. 😊`)
   }));
@@ -2284,7 +2373,7 @@ function renderCentralContatos(all){
     const d = daysUntil(c.dpp);
     return d>=0 && d<=60 && c.tipo!=='qualidade';
   }).map(c=>({
-    id:c.id, nome:c.nome,
+    id:c.id, nome:c.nome, feito:btnFeito(c.id,'guia-enviar','Guia enviada'),
     sub:`Parto em ${daysUntil(c.dpp)} dias · DPP: ${c.dpp||'—'}`,
     wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Sua guia para solicitação do salário maternidade está pronta. Vou te enviar agora para que efetue o pagamento o quanto antes. Qualquer dúvida estou à disposição! 😊`)
   }));
@@ -2292,13 +2381,14 @@ function renderCentralContatos(all){
   // ── Grupo 3: Cobrar pagamento da guia ──
   const cobrarGuia = all.filter(c=>{
     if(c.etapa!=='guia-enviada') return false;
+    if(feitoAtivo(c,'cobrar-guia')) return false; // cobrada há menos de 3 dias
     if(!c.dataVencGuia) return true; // sem vencimento registrado: sempre mostrar
     return c.dataVencGuia >= hojeStr; // vencimento futuro ou hoje: mostrar para acompanhar
   }).map(c=>{
     const diasVenc = c.dataVencGuia ? Math.round((new Date(c.dataVencGuia+'T00:00:00')-hoje)/864e5) : null;
     const vencTxt  = diasVenc===null ? 'Vencimento não registrado' : diasVenc<0 ? `⚠ Vencida há ${Math.abs(diasVenc)} dias` : diasVenc===0 ? '🔴 Vence hoje' : `Vence em ${diasVenc} dias (${c.dataVencGuia})`;
     return {
-      id:c.id, nome:c.nome, sub:vencTxt,
+      id:c.id, nome:c.nome, sub:vencTxt, feito:btnFeito(c.id,'cobrar-guia','Cobrei')+btnFeito(c.id,'guia-paga','Paga'),
       wlink: wLink(c, `Olá ${c.nome.split(' ')[0]}! Passando para lembrar que a guia do seu salário maternidade ${diasVenc!==null&&diasVenc<=0?'já venceu':'vence em breve'}. Já conseguiu efetuar o pagamento? Qualquer dúvida estou aqui! 😊`)
     };
   }).sort((a,b)=>{
@@ -2311,12 +2401,13 @@ function renderCentralContatos(all){
   const inadimplentes = all.filter(c=>{
     const conc = concessoes.find(x=>x.contractId===c.id);
     if(!conc) return false;
+    if(feitoAtivo(c,'cobrar-hon')) return false; // cobrada há menos de 7 dias (intervalo do POP)
     return isInadConc(conc);
   }).map(c=>{
     const conc = concessoes.find(x=>x.contractId===c.id);
     const atrasadas = parcelasEmAtraso(conc);
     return {
-      id:c.id, nome:c.nome,
+      id:c.id, nome:c.nome, feito:btnFeito(c.id,'cobrar-hon','Cobrei'),
       sub:`${atrasadas.length} parcela(s) em atraso · desde ${atrasadas[0]?.dtCliente||'—'}`,
       wlink: wLink(c, msgM1(c.id))
     };
@@ -2376,7 +2467,9 @@ Assim que nascer, me avisa o quanto antes e, depois do registro, me envia a cert
     porMes[mes].push(c);
   });
   const gruposMes = Object.keys(porMes).sort((a,b)=>b-a).map(mes=>{
-    const lista = porMes[mes];
+    const listaTodas = porMes[mes];
+    const lista = listaTodas.filter(c=>!feitoAtivo(c,'mes-gest')); // mensagem da semana já enviada sai da lista
+    const rodapeMes = rodapeFeitos(feitosSemana(listaTodas,['mes-gest']), 'fb_mes'+mes);
     const urgencia = mes>=9?'🔴':mes>=7?'🟠':mes>=5?'🟡':'🟢';
     const cor = mes>=9?'#B83535':mes>=7?'#A0612A':mes>=5?'#856404':'#3A7D44';
     const msg = msgPorMes[parseInt(mes)] || msgPorMes[9];
@@ -2392,17 +2485,19 @@ Assim que nascer, me avisa o quanto antes e, depois do registro, me envia a cert
             <div style="font-size:12px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="openPanel('${c.id}')">${c.nome}</div>
             <div style="font-size:11px;color:var(--text2);margin-top:2px">DPP: ${c.dpp} · ${daysUntil(c.dpp)} dias</div>
           </div>
-          <div style="flex-shrink:0">${wl}</div>
+          <div style="flex-shrink:0;display:flex;gap:5px;align-items:center">${wl}${btnFeito(c.id,'mes-gest','Enviada')}</div>
         </div>`;
       }).join('')}
+      ${lista.length?'':'<div style="font-size:11px;color:var(--green);padding:4px 0">Mensagens desta semana enviadas ✓</div>'}
+      ${rodapeMes}
     </div>`;
   }).join('');
 
   body.innerHTML =
-    grupoCard('🚨','Nasceu · Protocolar','#B83535', nasceu) +
-    grupoCard('📋','Guia para enviar','#1D5FA8', enviarGuia) +
-    grupoCard('💳','Cobrar pagamento da guia','#5B4BAD', cobrarGuia) +
-    grupoCard('💰','Cobrar honorário','#A0612A', inadimplentes) +
+    grupoCard('🚨','Nasceu · Protocolar','#B83535', nasceu, rodapeFeitos(feitosSemana(all,['nasceu']),'fb_nasc')) +
+    grupoCard('📋','Guia para enviar','#1D5FA8', enviarGuia, rodapeFeitos(feitosSemana(all,['guia-enviar']),'fb_genv')) +
+    grupoCard('💳','Cobrar pagamento da guia','#5B4BAD', cobrarGuia, rodapeFeitos(feitosSemana(all,['cobrar-guia','guia-paga']),'fb_gcob')) +
+    grupoCard('💰','Cobrar honorário','#A0612A', inadimplentes, rodapeFeitos(feitosSemana(all,['cobrar-hon']),'fb_hon')) +
     (gruposMes || '<div style="font-size:12px;color:var(--text2);padding:8px">Nenhuma gestante ativa no momento.</div>');
 }
 
@@ -2504,7 +2599,15 @@ window.renderDashboard = function(){
     }).map(c=>({col:'#3A7D44',name:c.nome,sub:'✅ Todas as parcelas pagas — processo pode ser encerrado',id:c.id,encerrarId:c.id})),
     ...alertasCobranca(),
   ];
-  $('alertsCard').innerHTML = alertas.length ? alertas.map(a=>{
+  // alertas marcados como feitos saem da lista até a situação mudar
+  const _alReg = window._alertReg = {};
+  const alertasVis = alertas.filter(a=>{
+    if(!a.id) return true;
+    a._k = chaveAlerta(a.sub); _alReg[a.id+'|'+a._k] = a.sub;
+    return !feitoAtivo(contracts.find(x=>x.id===a.id), a._k);
+  });
+  const rodapeAlertas = rodapeFeitos(feitosAlertasSemana(data), 'fb_alertas');
+  $('alertsCard').innerHTML = (alertasVis.length ? alertasVis.map(a=>{
     const primeiroNome = a.name.split(' ')[0];
     const msgParto = encodeURIComponent(`Olá, ${primeiroNome}, tudo bem? 😊\nVi aqui que está chegando o grande momento e faltam poucos dias para a chegada do bebê. Estou passando para saber como você está e desejar que ocorra tudo bem nessa reta final.\nAssim que o bebê nascer e for feito o registro, me encaminhe a certidão de nascimento para darmos continuidade ao andamento do benefício e deixarmos tudo certinho por aqui.\nQue venha com muita saúde! 🥰`);
     const wLink = a.whats==='parto' && a.tel ? `https://wa.me/55${a.tel.replace(/\D/g,'')}?text=${msgParto}` : '';
@@ -2515,9 +2618,10 @@ window.renderDashboard = function(){
         <div class="alert-sub">${a.sub}</div>
         ${wLink?`<a href="${wLink}" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;text-decoration:none;margin-top:4px">📱 WhatsApp</a>`:''}
         ${a.encerrarId?`<button onclick="encerrarProcessoPago('${a.encerrarId}','${a.name}')" style="display:inline-flex;align-items:center;gap:4px;background:#3A7D44;color:#fff;border:none;border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;margin-top:4px">✅ Encerrar processo</button>`:''}
+        ${a.id&&a._k?`<button onclick="marcarFeitoAlerta('${a.id}','${a._k}')" title="Marcar como feito: sai da lista até a situação mudar" style="display:inline-flex;align-items:center;gap:3px;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-radius:10px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;margin-top:4px;margin-left:4px">✓ Feito</button>`:''}
       </div>
     </div>`;
-  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text2);padding:8px 0">Nenhum alerta no momento. ✓</div>') + rodapeAlertas;
 
   const nb=nasc60.sort((a,b)=>daysUntil(a.dpp)-daysUntil(b.dpp));
   $('birthCard').innerHTML = nb.length ? nb.map(c=>`
